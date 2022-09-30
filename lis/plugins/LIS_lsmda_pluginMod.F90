@@ -477,7 +477,7 @@ subroutine LIS_lsmda_plugin
    external NoahMP401_scale_soilm
    external NoahMP401_descale_soilm
    external NoahMP401_updatesoilm
-   external noahmp401_soilm_DAlog
+   external Noahmp401_soilm_DAlog
 
    external NoahMP401_getsnowvars         
    external NoahMP401_setsnowvars              
