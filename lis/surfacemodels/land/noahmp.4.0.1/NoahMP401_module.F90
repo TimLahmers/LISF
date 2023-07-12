@@ -450,6 +450,8 @@ module NoahMP401_module
         real               :: qrf        !MMF output SW for MMF
         real               :: qspring    !MMF output, SW 
         real               :: rechclim   !SW 
+        real               :: cwidth     !TML; MMF HyMAP Ext.
+        real               :: clength    !TML; MMF HyMAP Ext.
         real               :: grain
         real               :: gdd
         integer            :: pgs

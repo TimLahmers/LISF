@@ -19,7 +19,7 @@ CONTAINS
 	       PLANTING,  HARVEST,SEASON_GDD,                                     &
                  IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,        & ! IN : User options
               IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC,        & ! IN : User options
-              IOPT_GLA, IOPT_SNDPTH, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP, & ! IN : User options
+              IOPT_GLA, IOPT_SNDPTH, IOPT_CHAN, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP, & ! IN : User options
               IZ0TLND, SF_URBAN_PHYSICS,                                    & ! IN : User options
 	      SOILCOMP,  SOILCL1,  SOILCL2,   SOILCL3,  SOILCL4,            & ! IN : User options
                    T3D,     QV3D,     U_PHY,    V_PHY,   SWDOWN,      GLW,  & ! IN : Forcing
@@ -109,6 +109,7 @@ CONTAINS
     INTEGER,                                         INTENT(IN   ) ::  IOPT_STC  ! snow/soil temperature time scheme
     INTEGER,                                         INTENT(IN   ) ::  IOPT_GLA  ! glacier option (1->phase change; 2->simple)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_SNDPTH !snow depth max for glacier model [mm]
+    INTEGER,                                         INTENT(IN   ) ::  IOPT_CHAN ! MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) 
     INTEGER,                                         INTENT(IN   ) ::  IOPT_RSF  ! surface resistance (1->Sakaguchi/Zeng; 2->Seller; 3->mod Sellers; 4->1+snow)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_SOIL ! soil configuration option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_PEDO ! soil pedotransfer function option
@@ -2278,9 +2279,9 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
 ! ==================================================================================================
 ! ----------------------------------------------------------------------
     SUBROUTINE GROUNDWATER_INIT (   &
-            &            NSOIL , DZS, ISLTYP, IVGTYP, WTDDT , &
-            &            FDEPTH, TOPO, RIVERBED, EQWTD, RIVERCOND, PEXP , AREA ,WTD ,  &
-            &            SMOIS,SH2O, SMOISEQ, SMCWTDXY, DEEPRECHXY, RECHXY ,  &
+            &            NSOIL , DZS, CHANOPT, ISLTYP, IVGTYP, WTDDT, &
+            &            FDEPTH, TOPO, RIVERBED, EQWTD, CWIDTH, CLENGTH, RIVERCOND, PEXP, AREA ,WTD, &
+            &            SMOIS,SH2O, SMOISEQ, SMCWTDXY, DEEPRECHXY, RECHXY, &
             &            QSLATXY, QRFSXY, QSPRINGSXY,                  &
             &            rechclim  ,                                   &
             &            ids,ide, jds,jde, kds,kde,                    &
@@ -2301,11 +2302,12 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
          &                           ims,ime, jms,jme, kms,kme,  &
          &                           ips,ipe, jps,jpe, kps,kpe,  &
          &                           its,ite, jts,jte, kts,kte
-    INTEGER, INTENT(IN)                              :: NSOIL
+    INTEGER, INTENT(IN)                              :: NSOIL, CHANOPT
     REAL,   INTENT(IN)                               ::     WTDDT
     REAL,    INTENT(IN), DIMENSION(1:NSOIL)          :: DZS
     INTEGER, INTENT(IN), DIMENSION(ims:ime, jms:jme) :: ISLTYP, IVGTYP
     REAL,    INTENT(IN), DIMENSION(ims:ime, jms:jme) :: FDEPTH, TOPO , AREA
+    REAL,    INTENT(IN), DIMENSION(ims:ime, jms:jme) :: CWIDTH, CLENGTH
     REAL,    INTENT(IN), DIMENSION(ims:ime, jms:jme) :: rechclim 
     REAL,    INTENT(OUT), DIMENSION(ims:ime, jms:jme) :: RIVERCOND
     REAL,    INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: WTD, RIVERBED, EQWTD, PEXP
@@ -2470,10 +2472,15 @@ EQWTD=WTD
     DO J=jts,jtf
        DO I=its,itf
           IF(LANDMASK(I,J).GT.0)THEN
-             IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
-               RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))
-             ELSE    
-               RCOND = RIVERCOND(I,J)
+             DKSAT  =   DKSAT_TABLE(ISLTYP(I,J))
+             IF(CHANOPT .EQ. 1) THEN
+               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT ! Derive Conductivity w/HyMAP+Noah-MP Param.
+             ELSE
+               IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
+                 RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))
+               ELSE    
+                 RCOND = RIVERCOND(I,J)
+               ENDIF
              ENDIF
              QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)
 !for now, dont allow it to go from river to groundwater

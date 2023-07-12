@@ -3,14 +3,15 @@ subroutine mmf_start(n)
     use NoahMP401_lsmMod
     use module_sf_noahmpdrv_401
     implicit none 
-    integer :: n, row, col, t, ridx, cidx 
+    integer :: n, row, col, t, ridx, cidx, chanopt 
     real :: wtddt 
    ! SW, MMF 
     integer, allocatable,dimension(:,:) :: isltyp, ivgtyp
     !real, allocatable :: fdepth(:,:)
     real, allocatable,dimension(:,:) ::  fdepth, topo , area, rechclim, rivercond, &
                                         wtd, riverbed, eqwtd, pexp, smcwtdxy, &
-                                        deeprechxy, rechxy, qslatxy, qrfsxy, qspringsxy  
+                                        deeprechxy, rechxy, qslatxy, qrfsxy, qspringsxy, &
+                                        cwidth, clength  
     real, allocatable,dimension(:,:,:) :: smois, sh2o, smoiseq
     wtddt = int(LIS_rc%ts/60) ! in minutes? 
 
@@ -28,6 +29,8 @@ subroutine mmf_start(n)
     allocate(smcwtdxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(deeprechxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(rechxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+    allocate(cwidth(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+    allocate(clength(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qslatxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qrfsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qspringsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
@@ -35,6 +38,12 @@ subroutine mmf_start(n)
     allocate(sh2o(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(smoiseq(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     
+    if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+        chanopt = 1
+    else
+        chanopt = 0
+    endif
+
     do row=NOAHMP401_struc(n)%row_min, NOAHMP401_struc(n)%row_max
         do col=NOAHMP401_struc(n)%col_min, NOAHMP401_struc(n)%col_max
             t = NOAHMP401_struc(n)%rct_idx(col,row)  ! rct_idx is col x row TML
@@ -62,6 +71,8 @@ subroutine mmf_start(n)
             eqwtd(col,row)     = NOAHMP401_struc(n)%eqwtd(cidx, ridx)
             rivercond(col,row) = NOAHMP401_struc(n)%rivercond(cidx, ridx)
             rechclim(col,row)  = NOAHMP401_struc(n)%rechclim(cidx, ridx)
+            cwidth(col,row)      = NOAHMP401_struc(n)%cwidth(cidx, ridx)
+            clength(col,row)      = NOAHMP401_struc(n)%clength(cidx, ridx)
             pexp(col,row)      = 1.0
         enddo
     enddo
@@ -77,11 +88,10 @@ subroutine mmf_start(n)
 
     call  groundwater_init (noahmp401_struc(n)%nsoil,  & !nsoil ,
                             noahmp401_struc(n)%sldpth, & !dzs, 
-                            isltyp, ivgtyp, wtddt ,    &
-                            fdepth, topo, riverbed, eqwtd, rivercond, pexp , area ,wtd ,  &
-                            smois,sh2o, smoiseq, smcwtdxy, deeprechxy, rechxy ,  &
-                            qslatxy, qrfsxy, qspringsxy,                  &
-                            rechclim  ,                                   &
+                            chanopt, isltyp, ivgtyp, wtddt ,    &
+                            fdepth, topo, riverbed, eqwtd, cwidth, clength, rivercond, & 
+                            pexp, area, wtd, smois,sh2o, smoiseq, smcwtdxy, &
+                            deeprechxy, rechxy, qslatxy, qrfsxy, qspringsxy, rechclim, &
                             NOAHMP401_struc(n)%col_min, & !ids,
                             NOAHMP401_struc(n)%col_max, & !ide, +1 for test
                             NOAHMP401_struc(n)%row_min, & !jds,
@@ -149,6 +159,8 @@ subroutine mmf_start(n)
     deallocate(topo)
     deallocate(area)
     deallocate(rechclim)
+    deallocate(cwidth)
+    deallocate(clength)
     deallocate(rivercond)
     deallocate(wtd)
     deallocate(riverbed)

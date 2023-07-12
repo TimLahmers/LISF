@@ -146,6 +146,8 @@ subroutine NoahMP401_coldstart(mtype)
     real, dimension(1,1) :: RIVERCONDXY !river conductance
     real, dimension(1,1) :: PEXPXY      !factor for river conductance
     real, dimension(1,1) :: rechclim
+    real, dimension(1,1) :: cwidth
+    real, dimension(1,1) :: clength
     integer            :: sf_urban_physics
 
    real, dimension(1,1)    :: taussxy
@@ -362,6 +364,8 @@ subroutine NoahMP401_coldstart(mtype)
              rivercondxy(1,1) = 0.0
              pexpxy(1,1) = 0.0
              rechclim(1,1) = 0.0
+             cwidth(1,1) = 0.0
+             clength(1,1) = 0.0
              sfcrunoffxy(1,1) = 0.0
              udrrunoffxy(1,1) = 0.0
              acsnomxy(1,1) = 0.0

@@ -395,7 +395,56 @@ subroutine NoahMP401_setup()
                     endif 
                 enddo
             enddo
+           if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+            ! read: cwidth
+            write(LIS_logunit,*) "[INFO] Noah-MP.4.0.1 reading parameter CWIDTH from ", &
+                 trim(LIS_rc%paramfile(n))
+            call LIS_read_param(n, "HYMAP_river_width", placeholder)
+            !! Note: the tile based data structure introduce missing values to MMF parameters where landmask=0
+            do t = 1, LIS_rc%npatch(n, mtype)
+                col = LIS_surface(n, mtype)%tile(t)%col
+                row = LIS_surface(n, mtype)%tile(t)%row
+                NOAHMP401_struc(n)%noahmp401(t)%cwidth = placeholder(col, row)
+            enddo
+            !!! the 2-D array should solve the missing values of MMF parameters where landmask=0
+            do ridx = NOAHMP401_struc(n)%row_min, NOAHMP401_struc(n)%row_max
+                do cidx = NOAHMP401_struc(n)%col_min, NOAHMP401_struc(n)%col_max
+                    row = ridx - NOAHMP401_struc(n)%row_min + 1
+                    col = cidx - NOAHMP401_struc(n)%col_min + 1
+                    NOAHMP401_struc(n)%cwidth(cidx, ridx) = placeholder(col, row)
+                enddo
+            enddo
+            ! read: clength
+            write(LIS_logunit,*) "[INFO] Noah-MP.4.0.1 reading parameter CLENGTH from ", &
+                 trim(LIS_rc%paramfile(n))
+            call LIS_read_param(n, "HYMAP_river_length", placeholder)
+            !! Note: the tile based data structure introduce missing values to MMF parameters where landmask=0
+            do t = 1, LIS_rc%npatch(n, mtype)
+                col = LIS_surface(n, mtype)%tile(t)%col
+                row = LIS_surface(n, mtype)%tile(t)%row
+                NOAHMP401_struc(n)%noahmp401(t)%clength = placeholder(col, row)
+            enddo
+            !!! the 2-D array should solve the missing values of MMF parameters where landmask=0
+            do ridx = NOAHMP401_struc(n)%row_min, NOAHMP401_struc(n)%row_max
+                do cidx = NOAHMP401_struc(n)%col_min, NOAHMP401_struc(n)%col_max
+                    row = ridx - NOAHMP401_struc(n)%row_min + 1
+                    col = cidx - NOAHMP401_struc(n)%col_min + 1
+                    NOAHMP401_struc(n)%clength(cidx, ridx) = placeholder(col, row)
+                enddo
+            enddo
+           else ! Fill arrays with generic values; not used...
+            do ridx = NOAHMP401_struc(n)%row_min, NOAHMP401_struc(n)%row_max
+                do cidx = NOAHMP401_struc(n)%col_min, NOAHMP401_struc(n)%col_max
+                    row = ridx - NOAHMP401_struc(n)%row_min + 1
+                    col = cidx - NOAHMP401_struc(n)%col_min + 1
+                    NOAHMP401_struc(n)%cwidth(cidx, ridx) = 1.0
+                    NOAHMP401_struc(n)%clength(cidx, ridx) = 1.0
+                enddo
+            enddo
+           endif
         endif
+
+
         deallocate(placeholder)
 
     !!!! read Noah-MP parameter tables  Shugong Wang 11/06/2018 

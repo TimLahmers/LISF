@@ -400,6 +400,28 @@ subroutine NoahMP401_readcrd()
                               NOAHMP401_struc(n)%urban_opt
     enddo
 
+    !TML: HyMAP MMF Option:
+    ! Custom snowpack depth for glacier model (in mm)
+    call ESMF_ConfigFindLabel(LIS_config, &
+         "Noah-MP.4.0.1 MMF Channel Exfiltration Option:", rc = rc)
+    if(rc /= 0) then
+        write(LIS_logunit,33) "[INFO] MMF Exfiltration Option not defined."
+        write(LIS_logunit,33) "[INFO] Using exponential conductivity (RCOND)."
+        write(LIS_logunit,33) "[INFO] Exponential RCOND is MMF default." 
+        write(LIS_logunit,33) "[INFO] Results not valid at dx res. < 4km."
+        do n=1, LIS_rc%nnest
+            NOAHMP401_struc(n)%chan_exfil_opt = 0
+            write(LIS_logunit,33) "MMF Channel Exfiltration Option: ",NOAHMP401_struc(n)%chan_exfil_opt
+        enddo
+    else
+        do n=1, LIS_rc%nnest
+            call ESMF_ConfigGetAttribute(LIS_config, NOAHMP401_struc(n)%chan_exfil_opt, rc=rc)
+            write(LIS_logunit,33) "MMF Channel Exfiltration Option: ",NOAHMP401_struc(n)%chan_exfil_opt
+        enddo
+    endif
+
+
+
     ! The following lines hard code the LDT NetCDF variable names. 
     ! Modified by Zhuo Wang on 11/08/2018
     ! Setting some values to PLANTING, HARVEST, SEASON_GDD, SOILCOMP, SOILCL1-->SOILCL4 in NoahMP401_main.F90

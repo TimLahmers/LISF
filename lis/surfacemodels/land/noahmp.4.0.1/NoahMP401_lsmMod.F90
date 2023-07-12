@@ -205,6 +205,7 @@ module NoahMP401_lsmMod
         integer            :: stc_opt
         integer            :: gla_opt
         integer            :: sndpth_gla_opt
+        integer            :: chan_exfil_opt
         integer            :: rsf_opt
         integer            :: soil_opt
         integer            :: pedo_opt
@@ -227,7 +228,9 @@ module NoahMP401_lsmMod
         real, pointer      :: rivercond(:,:)  !SW for MMF 
         real, pointer      :: qrf(:,:)        !MMF output SW for MMF
         real, pointer      :: qspring(:,:)    !MMF output, SW 
-        real, pointer      :: rechclim(:,:)   !SW 
+        real, pointer      :: rechclim(:,:)   !SW
+        real, pointer      :: cwidth(:,:)     !TML MMF HyMAP Ext.
+        real, pointer      :: clength(:,:)    !TML MMF HyMAP Ext.
         real, pointer      :: soil3d(:,:,:)   !SW, for MMF
         integer, pointer      :: soil2d(:,:)     !SW, for MMF 
         real, pointer      :: vege3d(:,:,:)   !SW, for MMF
@@ -451,6 +454,13 @@ contains
                                                     NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
                 allocate(NOAHMP401_struc(n)%rechclim(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, &
                                                     NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+
+                !if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+                allocate(NOAHMP401_struc(n)%cwidth(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, &
+                                                    NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+                allocate(NOAHMP401_struc(n)%clength(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, &
+                                                    NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+                !endif
 
                 allocate(NOAHMP401_struc(n)%soil3d(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, &
                                                     NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max, &

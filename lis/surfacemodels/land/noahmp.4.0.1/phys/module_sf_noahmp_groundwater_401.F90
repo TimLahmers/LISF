@@ -9,10 +9,10 @@ MODULE module_sf_noahmp_groundwater_401
 
 CONTAINS
 
-  SUBROUTINE WTABLE_mmf_noahmp (NSOIL     ,XLAND    ,XICE    ,XICE_THRESHOLD  ,ISICE ,& !in
-                                ISLTYP    ,SMOISEQ  ,DZS     ,WTDDT                  ,& !in
+  SUBROUTINE WTABLE_mmf_noahmp (NSOIL     ,CHANOPT  ,XLAND   ,XICE   ,XICE_THRESHOLD ,& !in
+                                ISICE    ,ISLTYP   ,SMOISEQ ,DZS     ,WTDDT         ,& !in
                                 FDEPTH    ,AREA     ,TOPO    ,ISURBAN ,IVGTYP        ,& !in
-                                RIVERCOND ,RIVERBED ,EQWTD   ,PEXP                   ,& !in
+                                RIVERCOND ,RIVERBED ,EQWTD   ,CWIDTH  ,CLENGTH ,PEXP ,& !in
                                 SMOIS     ,SH2OXY   ,SMCWTD  ,WTD  ,QRF              ,& !inout
                                 DEEPRECH  ,QSPRING  ,QSLAT   ,QRFS ,QSPRINGS  ,RECH  ,& !inout
                                 ids,ide, jds,jde, kds,kde,                    &
@@ -30,6 +30,7 @@ CONTAINS
   INTEGER,  INTENT(IN   )   ::     ids,ide, jds,jde, kds,kde,  &
        &                           ims,ime, jms,jme, kms,kme,  &
        &                           its,ite, jts,jte, kts,kte
+  INTEGER,  INTENT(IN   )   ::     CHANOPT
     REAL,   INTENT(IN)        ::     WTDDT
     REAL,   INTENT(IN)        ::     XICE_THRESHOLD
     INTEGER,  INTENT(IN   )   ::     ISICE
@@ -49,6 +50,8 @@ CONTAINS
                                                            AREA, &
                                                            TOPO, &
                                                           EQWTD, &
+                                                         CWIDTH, &
+                                                        CLENGTH, &
                                                            PEXP, &
                                                        RIVERBED, &
                                                       RIVERCOND
@@ -121,10 +124,15 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
     DO J=jts,jte
        DO I=its,ite
           IF(LANDMASK(I,J).GT.0)THEN
-             IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
-               RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))
-             ELSE    
-               RCOND = RIVERCOND(I,J)       
+             DKSAT  = DKSAT_TABLE  (ISLTYP(I,J))
+             IF(CHANOPT .EQ. 1) THEN
+               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT ! Derive Conductivity w/HyMAP+Noah-MP Param.
+             ELSE
+               IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
+                 RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))
+               ELSE    
+                 RCOND = RIVERCOND(I,J)       
+               ENDIF
              ENDIF
              QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)
 !for now, dont allow it to go from river to groundwater

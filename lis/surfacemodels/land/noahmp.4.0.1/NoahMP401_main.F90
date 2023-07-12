@@ -106,6 +106,7 @@ subroutine NoahMP401_main(n)
     integer              :: tmp_stc_opt            ! snow/soil temperature time scheme [-]
     integer              :: tmp_gla_opt            ! glacier option (1->phase change; 2->simple) [-]
     integer              :: tmp_sndpth_gla_opt     ! snow depth max for glacier model [mm]
+    integer              :: tmp_chan_exfil_opt     ! MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) [-]
     integer              :: tmp_rsf_opt            ! surface resistance (1->Sakaguchi/Zeng;2->Seller;3->mod Sellers;4->1+snow) [-]
     integer              :: tmp_soil_opt           ! soil configuration option [-]
     integer              :: tmp_pedo_opt           ! soil pedotransfer function option [-]
@@ -261,7 +262,7 @@ subroutine NoahMP401_main(n)
     REAL, PARAMETER:: LVH2O = 2.501000E+6 ! Latent heat for evapo for water  
 
     !!!! MMF scheme 
-    integer :: min_row, max_row, min_col, max_col, nsoil
+    integer :: min_row, max_row, min_col, max_col, nsoil, chanopt
     integer               :: isurban  ! urban type 
     real                  :: wtddt    ! 
     real                  :: ddz      ! 
@@ -277,6 +278,8 @@ subroutine NoahMP401_main(n)
     real, allocatable  :: riverbed(:, :) 
     real, allocatable  :: rivercond(:, :)
     real, allocatable  :: rechclim(:,:)
+    real, allocatable  :: cwidth(:, :) 
+    real, allocatable  :: clength(:, :) 
 
     !inout  
     real, allocatable :: smois(:, :, :)   ! SMC
@@ -500,6 +503,7 @@ subroutine NoahMP401_main(n)
             tmp_stc_opt           = NOAHMP401_struc(n)%stc_opt
             tmp_gla_opt           = NOAHMP401_struc(n)%gla_opt
             tmp_sndpth_gla_opt    = NOAHMP401_struc(n)%sndpth_gla_opt
+            tmp_chan_exfil_opt    = NOAHMP401_struc(n)%chan_exfil_opt
             tmp_rsf_opt           = NOAHMP401_struc(n)%rsf_opt
             tmp_soil_opt          = NOAHMP401_struc(n)%soil_opt
             tmp_pedo_opt          = NOAHMP401_struc(n)%pedo_opt
@@ -680,6 +684,7 @@ subroutine NoahMP401_main(n)
                                    tmp_stc_opt           , & ! in    - snow/soil temperature time scheme [-]
                                    tmp_gla_opt           , & ! in    - glacier option (1->phase change; 2->simple) [-]
                                    tmp_sndpth_gla_opt    , & ! in    - Snow depth max for glacier model [mm]
+                                   tmp_chan_exfil_opt    , & ! in    - MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) [-]
                                    tmp_rsf_opt           , & ! in    - surface resistance(1->Sakaguchi/Zeng;2->Seller;3->mod Sellers;4->1+snow) [-]
                                    tmp_soil_opt          , & ! in    - soil configuration option [-]
                                    tmp_pedo_opt          , & ! in    - soil pedotransfer function option [-]
@@ -1003,7 +1008,12 @@ subroutine NoahMP401_main(n)
             allocate(  riverbed(min_col:max_col, min_row:max_row))      ! P
             allocate( rivercond(min_col:max_col, min_row:max_row))      ! P
             allocate(  rechclim(min_col:max_col, min_row:max_row))      ! P
-            
+
+            !if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+                allocate(    cwidth(min_col:max_col, min_row:max_row))      ! P
+                allocate(    clength(min_col:max_col, min_row:max_row))     ! P
+            !endif            
+
             allocate(    isltyp(min_col:max_col, min_row:max_row))      ! P
             allocate(    ivgtyp(min_col:max_col, min_row:max_row))      ! P
 
@@ -1079,11 +1089,21 @@ subroutine NoahMP401_main(n)
                     eqwtd(col,row)     = NOAHMP401_struc(n)%eqwtd(cidx, ridx)
                     rivercond(col,row) = NOAHMP401_struc(n)%rivercond(cidx, ridx)
                     rechclim(col,row)  = NOAHMP401_struc(n)%rechclim(cidx, ridx)
+
                     pexp(col,row)      = 1.0
+                    !TML: HyMAP Channel Parameters (these are set to dummy values if not used...
+                    cwidth(col,row)    = NOAHMP401_struc(n)%cwidth(cidx, ridx)
+                    clength(col,row)    = NOAHMP401_struc(n)%clength(cidx, ridx)
                 enddo ! col loop
             enddo ! row loop
             
             wtddt = LIS_rc%ts/60.0 ! time step in minutes? 
+
+            if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+                chanopt = 1
+            else
+                chanopt = 0
+            endif
 
             !print*, 'WTABLE_mmf_noahmp Initial Values'
             !print*, 'FDEPTH = ',fdepth(25,12)
@@ -1114,10 +1134,10 @@ subroutine NoahMP401_main(n)
             !print*, 'RECH = ',rech(25,12)
 
             !!! call MMF physics 
-            call  WTABLE_mmf_noahmp (nsoil     ,xland    ,xice    ,xice_threshold  ,isice ,& !in
-                                     isltyp    ,smoiseq  ,dzs     ,wtddt                  ,& !in
+            call  WTABLE_mmf_noahmp (nsoil     ,chanopt  ,xland   ,xice   ,xice_threshold ,& !in
+                                     isice     ,isltyp   ,smoiseq ,dzs     ,wtddt         ,& !in
                                      fdepth    ,area     ,topo    ,isurban ,ivgtyp        ,& !in
-                                     rivercond ,riverbed ,eqwtd   ,pexp                   ,& !in
+                                     rivercond ,riverbed ,eqwtd   ,cwidth  ,clength ,pexp ,& !in
                                      smois     ,sh2oxy   ,smcwtd  ,wtd  ,qrf              ,& !inout
                                      deeprech  ,qspring  ,qslat   ,qrfs ,qsprings  ,rech  ,& !inout
                                      ids,ide, jds,jde, kds,kde,                    &
@@ -1203,6 +1223,10 @@ subroutine NoahMP401_main(n)
             deallocate(     xice)
             deallocate(      qrf)
             deallocate(  qspring)
+            !if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
+                deallocate(   cwidth)
+                deallocate(   clength)
+            !endif
         endif ! if run MMF 
         
        
