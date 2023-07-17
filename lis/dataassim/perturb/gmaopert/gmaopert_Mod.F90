@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -37,6 +37,7 @@ module gmaopert_Mod
   use landpert_routines
   use random_fields
   use LIS_ran2_gasdev
+  use LIS_constantsMod, only : LIS_CONST_PATH_LEN
 
   implicit none
   PRIVATE
@@ -136,7 +137,7 @@ module gmaopert_Mod
       integer                      :: gid
       integer                      :: status
       integer, parameter           :: N_domain = 1
-      character*100                :: sname
+      character(len=LIS_CONST_PATH_LEN) :: sname
       integer                      :: objcount
       integer, allocatable             :: init_Pert_rseed(:,:,:,:)
       integer, allocatable             :: ens_id(:)
@@ -1833,7 +1834,7 @@ module gmaopert_Mod
       real, allocatable        :: pertdata1d_patch(:)
       integer, allocatable     :: pertdata1d_int(:)
       integer, allocatable     :: pertdata1d_patch_int(:)
-      character*100            :: filen
+      character(len=LIS_CONST_PATH_LEN) :: filen
       integer                  :: ftn 
 
       if ( LIS_masterproc ) then
@@ -2025,7 +2026,7 @@ module gmaopert_Mod
       integer                   :: k, kk,i,t, ftn, col, row, ensem
       integer                   :: yr,mo,da,hr,mn,ss, doy
       integer                   :: status
-      character*100             :: filen
+      character(len=LIS_CONST_PATH_LEN) :: filen
       real*8                    :: time
       real                      :: gmt
       real, allocatable         :: pertdata1d(:)
@@ -2035,6 +2036,7 @@ module gmaopert_Mod
       integer, allocatable      :: pertdata1d_obs_int(:)
       integer, allocatable      :: pertdata1d_patch_int(:)
       real, allocatable         :: dummy_var(:,:,:)
+      logical                   :: file_exists
 
       do n = 1, LIS_rc%nnest
 
@@ -2061,6 +2063,13 @@ module gmaopert_Mod
             endif
          endif
          
+         inquire( file=trim(LIS_rc%pertRestartFile(n)), exist=file_exists ) 
+         if(file_exists .neqv. .true.) then
+            write(LIS_logunit,*) '[ERR] Reading perturbations restart file MISSING: ',&
+                  trim(LIS_rc%pertRestartFile(n))
+            call LIS_endrun()
+         endif
+
          open(ftn,file=trim(LIS_rc%pertRestartFile(n)), form='unformatted')
          write(LIS_logunit,*) '[INFO] Reading perturbations restart file ',&
               trim(LIS_rc%pertRestartFile(n))

@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -23,9 +23,13 @@ module LIS_fileIOMod
 !  08 Apr 2004    James Geiger Initial Specification
 !  11 Oct 2018    Nargess Memarsadeghi, cleaned up and corrected LIS_create_output_directory
 !  18 Oct 2019    David Mocko, corrected creation of sub-directories for "WMO convention"
-! 
+!  26 Apr 2023    Eric Kemp, added new output naming style for 557 WW for
+!                 streamflow output.
+!  22 May 2023    Eric Kemp, added new output naming style for 557 WW for
+!                 medium range forecasts.
 ! !USES: 
   use ESMF
+  use LIS_constantsMod, only : LIS_CONST_PATH_LEN
 
   implicit none 
   PRIVATE
@@ -220,7 +224,7 @@ subroutine LIS_create_output_directory(mname)
 !EOP
    character(len=4) :: cdate
    character(len=8) :: cdate1
-   character(len=200) :: out_dname
+   character(len=LIS_CONST_PATH_LEN) :: out_dname
    integer            :: try,ios
 #if (!defined AIX )
    integer            :: system 
@@ -231,7 +235,7 @@ subroutine LIS_create_output_directory(mname)
    ! standard POSIX function. This requires defining the C wrapper function,
    ! and specifying new variables to pass to said C function.
    integer, external :: LIS_create_subdirs
-   character(len=201) :: c_string
+   character(len=LIS_CONST_PATH_LEN+1) :: c_string
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then
       out_dname = trim(LIS_rc%odir)//'/'
@@ -264,6 +268,22 @@ subroutine LIS_create_output_directory(mname)
          write(unit=cdate1, fmt='(i4.4, i2.2)') LIS_rc%yr, LIS_rc%mo
          out_dname = trim(out_dname)//trim(cdate1)
       endif
+   elseif(LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle .eq. "557WW medium range forecast convention") then ! EMK
+      out_dname = trim(LIS_rc%odir)
+      if (trim(mname).eq."SURFACEMODEL") then
+         continue
+      elseif (trim(mname) .eq. "ROUTING") then
+         continue
+      elseif (trim(mname).eq."DAPERT") then
+         out_dname = trim(LIS_rc%odir)//'/'
+         out_dname = trim(out_dname)//trim(mname)//'/'
+      elseif (trim(mname).eq."DAOBS") then
+         out_dname = trim(LIS_rc%odir)//'/'
+         out_dname = trim(out_dname)//trim(mname)//'/'
+         write(unit=cdate1, fmt='(i4.4, i2.2)') LIS_rc%yr, LIS_rc%mo
+         out_dname = trim(out_dname)//trim(cdate1)
+      endif
    endif
 
 #if ( defined AIX )
@@ -278,7 +298,7 @@ subroutine LIS_create_output_directory(mname)
 #endif
 
    if (ios .ne. 0) then
-     write(LIS_logunit,*)'ERR creating directory ',trim(out_dname)
+     write(LIS_logunit,*)'[ERR] creating directory ',trim(out_dname)
      flush(LIS_logunit)
    end if
 
@@ -294,7 +314,7 @@ end subroutine LIS_create_output_directory
 subroutine create_output_filename(n, fname, model_name, odir, writeint)
 ! !USES:
    use LIS_coreMod,  only : LIS_rc
-   use LIS_logMod,   only : LIS_log_msg, LIS_endrun
+   use LIS_logMod,   only : LIS_log_msg, LIS_endrun, LIS_logunit
 !   use LIS_forecastMod
 
    implicit none 
@@ -373,10 +393,18 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
-   character(len=100)       :: odir_temp
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: odir_temp
    integer                  :: i, c
+
+   character(len=8) :: initdate
+   character(len=2) :: inithr
+   character(len=3) :: fhr
+   integer :: hr
+   integer :: rc
+   type(ESMF_Time) :: starttime, curtime
+   type(ESMF_TimeInterval) :: deltatime
 
    if ( present(odir) ) then
       odir_temp = odir
@@ -415,9 +443,21 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ("distributed binary")
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif         
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -457,9 +497,21 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ( "distributed binary" )
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif         
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -496,9 +548,21 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ( "distributed binary" )
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif         
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -589,6 +653,263 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
          out_fname = trim(dname)//'.GR2'
       case default            
       end select
+   elseif(LIS_rc%wstyle.eq."557WW streamflow convention") then ! EMK
+      write(unit=fint,fmt='(i2.2)') nint(writeint)/3600
+      write(unit=cdate1, fmt='(i4.4, i2.2, i2.2)') &
+           LIS_rc%yr, LIS_rc%mo, LIS_rc%da
+
+      write(unit=cdate, fmt='(i2.2, i2.2)') LIS_rc%hr, LIS_rc%mn
+
+      if(LIS_rc%lis_map_proj.eq."polar") then
+         fproj = 'P'
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."lambert") then
+         fproj = 'L'
+         write(unit=fres, fmt='(f2.0)') LIS_rc%gridDesc(n, 9)
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."mercator") then
+         fproj = 'M'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)
+         fres = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."gaussian") then
+         fproj = 'G'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)*100
+         fres = '0P'//trim(fres)//'DEG'
+      else
+         fproj = 'C'
+         write(unit=fres, fmt='(i10)') nint(LIS_rc%gridDesc(n,10)*100)
+         read(unit=fres,fmt='(10a1)') (fres1(i),i=1,10)
+         c = 0
+         do i=1,10
+            if(fres1(i).ne.' '.and.c==0) c = i
+         enddo
+         if (LIS_rc%gridDesc(n,10) .lt. 0.1) then
+            fres3 = '0P0'
+         else
+            fres3 = '0P'
+         end if
+         fres2 = fres3
+         do i=c,10
+            fres2 = trim(fres2)//trim(fres1(i))
+         enddo
+         fres2 = trim(fres2)//'DEG'
+      endif
+
+      !dname = trim(odir_temp)//&
+      !     '/PS.AFWA_SC.'//trim(LIS_rc%security_class)//&
+      !     '_DI.'//trim(LIS_rc%distribution_class)//&
+      !     '_DC.'//trim(LIS_rc%data_category)//'_GP.LIS_GR.'//&
+      !     trim(fproj)//trim(fres2)//'_AR.'//trim(LIS_rc%area_of_data)//&
+      !     '_PA.'//trim(fint)//'-HR-SUM_DD.'//&
+      !     trim(cdate1)//'_DT.'//trim(cdate)//'_DF'
+      dname = trim(odir_temp) &
+           //'/PS.557WW' &
+           //'_SC.'//trim(LIS_rc%security_class) &
+           //'_DI.'//trim(LIS_rc%distribution_class)
+      if (LIS_rc%lsm .eq. "Noah.3.9") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-NOAH'
+      else if (LIS_rc%lsm .eq. "Noah-MP.4.0.1") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-NOAHMP'
+      else if (LIS_rc%lsm .eq. "JULES.5.0") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-JULES'
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Land surface model for 557WW streamflow convention ', &
+              trim(LIS_rc%lsm)
+         call LIS_endrun()
+      end if
+      if (LIS_rc%routingmodel .eq. "HYMAP2 router") then
+         dname = trim(dname) &
+           //'-HYMAP'
+      else if (LIS_rc%routingmodel .eq. "RAPID router") then
+         dname = trim(dname) &
+           //'-RAPID'
+      else if (LIS_rc%routingmodel .eq. "none") then
+         continue
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Routing model for 557WW streamflow convention ', &
+              trim(LIS_rc%routingmodel)
+         call LIS_endrun()
+      end if
+
+      dname = trim(dname) &
+           //'_GR.'//trim(fproj)//trim(fres2) &
+           //'_AR.'//trim(LIS_rc%area_of_data) &
+           //'_PA.'//trim(model_name) &
+           //'_DD.'//trim(cdate1) &
+           //'_DT.'//trim(cdate) &
+           //'_DF'
+
+      select case (LIS_rc%wout)
+      case ("binary")
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(dname)//'.DAT'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(dname)//'.DAT'
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.DAT'
+         endif
+      case ("grib1")
+         out_fname = trim(dname)//'.GR1'
+      case ("netcdf")
+         out_fname = trim(dname)//'.NC' ! EMK
+      case ("grib2")
+         out_fname = trim(dname)//'.GR2'
+      case default            
+      end select
+
+   elseif(LIS_rc%wstyle.eq."557WW medium range forecast convention") then ! EMK
+      write(unit=fint,fmt='(i2.2)') nint(writeint)/3600
+      write(unit=cdate1, fmt='(i4.4, i2.2, i2.2)') &
+           LIS_rc%yr, LIS_rc%mo, LIS_rc%da
+
+      write(unit=cdate, fmt='(i2.2, i2.2)') LIS_rc%hr, LIS_rc%mn
+
+      if(LIS_rc%lis_map_proj.eq."polar") then
+         fproj = 'P'
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."lambert") then
+         fproj = 'L'
+         write(unit=fres, fmt='(f2.0)') LIS_rc%gridDesc(n, 9)
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."mercator") then
+         fproj = 'M'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)
+         fres = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."gaussian") then
+         fproj = 'G'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)*100
+         fres = '0P'//trim(fres)//'DEG'
+      else
+         fproj = 'C'
+         write(unit=fres, fmt='(i10)') nint(LIS_rc%gridDesc(n,10)*100)
+         read(unit=fres,fmt='(10a1)') (fres1(i),i=1,10)
+         c = 0
+         do i=1,10
+            if(fres1(i).ne.' '.and.c==0) c = i
+         enddo
+         if (LIS_rc%gridDesc(n,10) .lt. 0.1) then
+            fres3 = '0P0'
+         else
+            fres3 = '0P'
+         end if
+         fres2 = fres3
+         do i=c,10
+            fres2 = trim(fres2)//trim(fres1(i))
+         enddo
+         fres2 = trim(fres2)//'DEG'
+      endif
+
+      dname = trim(odir_temp) &
+           //'/PS.557WW' &
+           //'_SC.'//trim(LIS_rc%security_class) &
+           //'_DI.'//trim(LIS_rc%distribution_class)
+      if (LIS_rc%lsm .eq. "Noah.3.9") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-NOAH'
+      else if (LIS_rc%lsm .eq. "Noah-MP.4.0.1") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-NOAHMP'
+      else if (LIS_rc%lsm .eq. "JULES.5.0") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-JULES'
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Land surface model for ', &
+              '557WW medium range forecast convention ', &
+              trim(LIS_rc%lsm)
+         call LIS_endrun()
+      end if
+      if (LIS_rc%routingmodel .eq. "HYMAP2 router") then
+         dname = trim(dname) &
+           //'-HYMAP'
+      else if (LIS_rc%routingmodel .eq. "RAPID router") then
+         dname = trim(dname) &
+           //'-RAPID'
+      else if (LIS_rc%routingmodel .eq. "none") then
+         continue
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Routing model for ', &
+              '557WW medium range forecast convention ', &
+              trim(LIS_rc%routingmodel)
+         call LIS_endrun()
+      end if
+
+      write(unit=initdate, fmt='(i4.4, i2.2, i2.2)') &
+           LIS_rc%syr, LIS_rc%smo, LIS_rc%sda
+      write(unit=inithr, fmt='(i2.2)') LIS_rc%shr
+      call ESMF_TimeSet(starttime, &
+           yy=LIS_rc%syr, mm=LIS_rc%smo, dd=LIS_rc%sda, &
+           h=LIS_rc%shr, m=LIS_rc%smn, s=LIS_rc%sss, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot set starttime object!'
+         call LIS_endrun()
+      end if
+      call ESMF_TimeSet(curtime, &
+           yy=LIS_rc%yr, mm=LIS_rc%mo, dd=LIS_rc%da, &
+           h=LIS_rc%hr, m=LIS_rc%mn, s=LIS_rc%ss, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot set curtime object!'
+         call LIS_endrun()
+      end if
+      deltatime = curtime - starttime
+      call ESMF_TimeIntervalGet(deltatime, h=hr, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot get hr from deltatime!'
+         call LIS_endrun()
+      end if
+      write(unit=fhr, fmt='(i3.3)') hr
+      dname = trim(dname) &
+           //'_GR.'//trim(fproj)//trim(fres2) &
+           //'_AR.'//trim(LIS_rc%area_of_data) &
+           //'_PA.'//trim(model_name) &
+           //'_DD.'//trim(initdate) &
+           //'_CY.'//trim(inithr) &
+           //'_FH.'//trim(fhr)
+
+      select case (LIS_rc%wout)
+      case ("binary")
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(dname)//'_DF.DAT'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(dname)//'_DF.DAT'
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'_DF.DAT'
+         endif
+      case ("grib1")
+         out_fname = trim(dname)//'_DF.GR1'
+      case ("netcdf")
+         out_fname = trim(dname)//'_DF.NC'
+      case ("grib2")
+         out_fname = trim(dname)//'_DF.GR2'
+      case default            
+      end select
+
    endif
    fname = out_fname
  end subroutine create_output_filename
@@ -601,7 +922,7 @@ subroutine create_output_filename(n, fname, model_name, odir, writeint)
 ! \label{create_output_filename_expected}
 !
 ! !INTERFACE:
-subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
+subroutine create_output_filename_expected(n, fname, wout, flag, model_name, odir,&
      writeint)
 ! !USES:
    use LIS_coreMod
@@ -613,6 +934,7 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
 ! !ARGUMENTS:
    integer, intent(in) :: n
    character(len=*), intent(out)          :: fname
+   character(len=*), intent(in)           :: wout
    logical         , intent(in)           :: flag 
    character(len=*), intent(in), optional :: model_name ! needed for gswp run
    character(len=*), intent(in), optional :: odir ! needed for gswp run
@@ -685,9 +1007,15 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
-   character(len=100)       :: odir_temp
+   character(len=8) :: initdate
+   character(len=2) :: inithr
+   character(len=3) :: fhr
+   integer :: rc
+   type(ESMF_Time) :: starttime, curtime
+   type(ESMF_TimeInterval) :: deltatime
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: odir_temp
    integer                  :: i, c
    integer                  :: yr, mo, da, hr, mn, ss
    type(ESMF_Time)          :: currTime, outTime
@@ -813,15 +1141,27 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
       write(unit=cdate, fmt='(a2,i2.2)') '.d',n      
       out_fname = trim(out_fname)//trim(cdate)
       
-      select case ( LIS_rc%wout )
+      select case ( wout )
       case ( "binary" )
          if(LIS_rc%wopt.eq."1d tilespace") then 
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ( "distributed binary" )
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif         
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -849,15 +1189,27 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
       write(unit=cdate, fmt='(a2,i2.2)') '.d',n      
       out_fname = trim(out_fname)//trim(cdate)
       
-      select case ( LIS_rc%wout )
+      select case ( wout )
       case ("binary")
          if(LIS_rc%wopt.eq."1d tilespace") then 
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ( "distributed binary" )
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif         
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -866,7 +1218,7 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
          out_fname = trim(out_fname)//'.gr2'
       case default
          call lis_log_msg('ERR: create_output_filename -- '// &
-              'Unrecognized LIS_rc%wout value')
+              'Unrecognized wout value')
          call LIS_endrun 
       endselect
    elseif(LIS_rc%wstyle.eq."2 level hierarchy") then
@@ -882,15 +1234,27 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
       write(unit=cdate, fmt='(a2,i2.2)') '.d',n      
       out_fname = trim(out_fname)//trim(cdate)
       
-      select case ( LIS_rc%wout )
+      select case ( wout )
       case ("binary")
          if(LIS_rc%wopt.eq."1d tilespace") then 
             out_fname = trim(out_fname)//'.ts4r'
          elseif(LIS_rc%wopt.eq."2d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
          elseif(LIS_rc%wopt.eq."1d gridspace") then 
             out_fname = trim(out_fname)//'.gs4r'
          endif
+      case ( "distributed binary" )
+         if(LIS_rc%wopt.eq."1d tilespace") then 
+            out_fname = trim(out_fname)//'.ts4r'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'            
+         elseif(LIS_rc%wopt.eq."1d gridspace") then 
+            out_fname = trim(out_fname)//'.gs4r'
+         endif                  
       case ("grib1")
          out_fname = trim(out_fname)//'.grb'
       case ("netcdf")
@@ -899,7 +1263,7 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
          out_fname = trim(out_fname)//'.gr2'
       case default
          call lis_log_msg('ERR: create_output_filename -- '// &
-              'Unrecognized LIS_rc%wout value')
+              'Unrecognized wout value')
          call LIS_endrun 
       endselect
    elseif(LIS_rc%wstyle.eq."WMO convention") then 
@@ -963,7 +1327,7 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
            trim(fproj)//trim(fres2)//'_AR.'//trim(LIS_rc%area_of_data)//&
            '_PA.'//trim(fint)//'-HR-SUM_DD.'//&
            trim(cdate1)//'_DT.'//trim(cdate)//'_DF'
-      select case (LIS_rc%wout)
+      select case (wout)
       case ("binary")
          if(LIS_rc%wopt.eq."1d tilespace") then 
             out_fname = trim(dname)//'.DAT'
@@ -980,6 +1344,265 @@ subroutine create_output_filename_expected(n, fname, flag, model_name, odir,&
          out_fname = trim(dname)//'.GR2'
       case default            
       end select
+
+   elseif(LIS_rc%wstyle.eq."557WW streamflow convention") then ! EMK
+      write(unit=fint,fmt='(i2.2)') nint(writeint)/3600
+      write(unit=cdate1, fmt='(i4.4, i2.2, i2.2)') &
+           yr, mo, da
+
+      write(unit=cdate, fmt='(i2.2, i2.2)') hr, mn
+
+      if(LIS_rc%lis_map_proj.eq."polar") then
+         fproj = 'P'
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."lambert") then
+         fproj = 'L'
+         write(unit=fres, fmt='(f2.0)') LIS_rc%gridDesc(n, 9)
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."mercator") then
+         fproj = 'M'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)
+         fres = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."gaussian") then
+         fproj = 'G'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)*100
+         fres = '0P'//trim(fres)//'DEG'
+      else
+         fproj = 'C'
+         write(unit=fres, fmt='(i10)') nint(LIS_rc%gridDesc(n,10)*100)
+         read(unit=fres,fmt='(10a1)') (fres1(i),i=1,10)
+         c = 0
+         do i=1,10
+            if(fres1(i).ne.' '.and.c==0) c = i
+         enddo
+         if (LIS_rc%gridDesc(n,10) .lt. 0.1) then
+            fres3 = '0P0'
+         else
+            fres3 = '0P'
+         end if
+         fres2 = fres3
+         do i=c,10
+            fres2 = trim(fres2)//trim(fres1(i))
+         enddo
+         fres2 = trim(fres2)//'DEG'
+      endif
+
+      !dname = trim(odir_temp)//&
+      !     '/PS.AFWA_SC.'//trim(LIS_rc%security_class)//&
+      !     '_DI.'//trim(LIS_rc%distribution_class)//&
+      !     '_DC.'//trim(LIS_rc%data_category)//'_GP.LIS_GR.'//&
+      !     trim(fproj)//trim(fres2)//'_AR.'//trim(LIS_rc%area_of_data)//&
+      !     '_PA.'//trim(fint)//'-HR-SUM_DD.'//&
+      !     trim(cdate1)//'_DT.'//trim(cdate)//'_DF'
+      dname = trim(odir_temp) &
+           //'/PS.557WW' &
+           //'_SC.'//trim(LIS_rc%security_class) &
+           //'_DI.'//trim(LIS_rc%distribution_class)
+      if (LIS_rc%lsm .eq. "Noah.3.9") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-NOAH'
+      else if (LIS_rc%lsm .eq. "Noah-MP.4.0.1") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-NOAHMP'
+      else if (LIS_rc%lsm .eq. "JULES.5.0") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-JULES'
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Land surface model for 557WW streamflow convention ', &
+              trim(LIS_rc%lsm)
+         call LIS_endrun()
+      end if
+      if (LIS_rc%routingmodel .eq. "HYMAP2 router") then
+         dname = trim(dname) &
+           //'-HYMAP'
+      else if (LIS_rc%routingmodel .eq. "RAPID router") then
+         dname = trim(dname) &
+           //'-RAPID'
+      else if (LIS_rc%routingmodel .eq. "none") then
+         continue
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Routing model for 557WW streamflow convention ', &
+              trim(LIS_rc%routingmodel)
+         call LIS_endrun()
+      end if
+
+      dname = trim(dname) &
+           //'_GR.'//trim(fproj)//trim(fres2) &
+           //'_AR.'//trim(LIS_rc%area_of_data) &
+           //'_PA.'//trim(model_name) &
+           //'_DD.'//trim(cdate1) &
+           //'_DT.'//trim(cdate) &
+           //'_DF'
+
+      select case (wout)
+      case ("binary")
+         if(LIS_rc%wopt.eq."1d tilespace") then
+            out_fname = trim(dname)//'.DAT'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then
+            out_fname = trim(dname)//'.DAT'
+         elseif(LIS_rc%wopt.eq."1d gridspace") then
+            out_fname = trim(out_fname)//'.DAT'
+         endif
+      case ("grib1")
+         out_fname = trim(dname)//'.GR1'
+      case ("netcdf")
+         out_fname = trim(dname)//'.NC'
+      case ("grib2")
+         out_fname = trim(dname)//'.GR2'
+      case default
+      end select
+
+   elseif(LIS_rc%wstyle.eq. &
+        "557WW medium range forecast convention") then ! EMK
+      write(unit=fint,fmt='(i2.2)') nint(writeint)/3600
+      write(unit=cdate1, fmt='(i4.4, i2.2, i2.2)') &
+           yr, mo, da
+
+      write(unit=cdate, fmt='(i2.2, i2.2)') hr, mn
+
+      if(LIS_rc%lis_map_proj.eq."polar") then
+         fproj = 'P'
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."lambert") then
+         fproj = 'L'
+         write(unit=fres, fmt='(f2.0)') LIS_rc%gridDesc(n, 9)
+         if (LIS_rc%gridDesc(n, 9) .ge. 10.) then
+            write(unit=fres, fmt='(i2)') nint(LIS_rc%gridDesc(n, 9))
+         else
+            write(unit=fres, fmt='(i1)') nint(LIS_rc%gridDesc(n, 9))
+         endif
+         fres2 = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."mercator") then
+         fproj = 'M'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)
+         fres = trim(fres)//'KM'
+      elseif(LIS_rc%lis_map_proj.eq."gaussian") then
+         fproj = 'G'
+         write(unit=fres, fmt='(i2.2)') LIS_rc%gridDesc(n, 9)*100
+         fres = '0P'//trim(fres)//'DEG'
+      else
+         fproj = 'C'
+         write(unit=fres, fmt='(i10)') nint(LIS_rc%gridDesc(n,10)*100)
+         read(unit=fres,fmt='(10a1)') (fres1(i),i=1,10)
+         c = 0
+         do i=1,10
+            if(fres1(i).ne.' '.and.c==0) c = i
+         enddo
+         if (LIS_rc%gridDesc(n,10) .lt. 0.1) then
+            fres3 = '0P0'
+         else
+            fres3 = '0P'
+         end if
+         fres2 = fres3
+         do i=c,10
+            fres2 = trim(fres2)//trim(fres1(i))
+         enddo
+         fres2 = trim(fres2)//'DEG'
+      endif
+
+      dname = trim(odir_temp) &
+           //'/PS.557WW' &
+           //'_SC.'//trim(LIS_rc%security_class) &
+           //'_DI.'//trim(LIS_rc%distribution_class)
+      if (LIS_rc%lsm .eq. "Noah.3.9") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-NOAH'
+      else if (LIS_rc%lsm .eq. "Noah-MP.4.0.1") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-NOAHMP'
+      else if (LIS_rc%lsm .eq. "JULES.5.0") then
+         dname = trim(dname) &
+           //'_GP.'//'LIS-MR-JULES'
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Land surface model for ', &
+              '557WW medium range forecast convention ', &
+              trim(LIS_rc%lsm)
+         call LIS_endrun()
+      end if
+      if (LIS_rc%routingmodel .eq. "HYMAP2 router") then
+         dname = trim(dname) &
+           //'-HYMAP'
+      else if (LIS_rc%routingmodel .eq. "RAPID router") then
+         dname = trim(dname) &
+           //'-RAPID'
+      else if (LIS_rc%routingmodel .eq. "none") then
+         continue
+      else
+         write(LIS_logunit,*) &
+              '[ERR] Invalid Routing model for ', &
+              '557WW medium range forecast convention ', &
+              trim(LIS_rc%routingmodel)
+         call LIS_endrun()
+      end if
+
+      write(unit=initdate, fmt='(i4.4, i2.2, i2.2)') &
+           LIS_rc%syr, LIS_rc%smo, LIS_rc%sda
+      write(unit=inithr, fmt='(i2.2)') LIS_rc%shr
+      call ESMF_TimeSet(starttime, &
+           yy=LIS_rc%syr, mm=LIS_rc%smo, dd=LIS_rc%sda, &
+           h=LIS_rc%shr, m=LIS_rc%smn, s=LIS_rc%sss, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot set starttime object!'
+         call LIS_endrun()
+      end if
+      call ESMF_TimeSet(curtime, &
+           yy=LIS_rc%yr, mm=LIS_rc%mo, dd=LIS_rc%da, &
+           h=LIS_rc%hr, m=LIS_rc%mn, s=LIS_rc%ss, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot set curtime object!'
+         call LIS_endrun()
+      end if
+      deltatime = curtime - starttime
+      call ESMF_TimeIntervalGet(deltatime, h=hr, rc=rc)
+      if (rc .ne. ESMF_SUCCESS) then
+         write(LIS_logunit,*)'[ERR] Cannot get hr from deltatime!'
+         call LIS_endrun()
+      end if
+      write(unit=fhr, fmt='(i3.3)') hr
+      dname = trim(dname) &
+           //'_GR.'//trim(fproj)//trim(fres2) &
+           //'_AR.'//trim(LIS_rc%area_of_data) &
+           //'_PA.'//trim(model_name) &
+           //'_DD.'//trim(initdate) &
+           //'_CY.'//trim(inithr) &
+           //'_FH.'//trim(fhr)
+
+      select case (wout)
+      case ("binary")
+         if(LIS_rc%wopt.eq."1d tilespace") then
+            out_fname = trim(dname)//'_DF.DAT'
+         elseif(LIS_rc%wopt.eq."2d gridspace") then
+            out_fname = trim(dname)//'_DF.DAT'
+         elseif(LIS_rc%wopt.eq."1d gridspace") then
+            out_fname = trim(out_fname)//'_DF.DAT'
+         endif
+      case ("grib1")
+         out_fname = trim(dname)//'_DF.GR1'
+      case ("netcdf")
+         out_fname = trim(dname)//'_DF.NC'
+      case ("grib2")
+         out_fname = trim(dname)//'_DF.GR2'
+      case default
+      end select
+
    endif
    fname = out_fname
  end subroutine create_output_filename_expected
@@ -1069,8 +1692,8 @@ subroutine create_dapert_filename(n, fname)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -1111,7 +1734,9 @@ subroutine create_dapert_filename(n, fname)
       
       out_fname = trim(out_fname)//'.bin'
    elseif(LIS_rc%wstyle.eq."2 level hierarchy".or.&
-        LIS_rc%wstyle.eq."WMO convention") then
+        LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            LIS_rc%yr, LIS_rc%mo, &
            LIS_rc%da, LIS_rc%hr,LIS_rc%mn
@@ -1214,8 +1839,8 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -1256,7 +1881,9 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
       
       out_fname = trim(out_fname)//'.bin'
    elseif(LIS_rc%wstyle.eq."2 level hierarchy".or.&
-        LIS_rc%wstyle.eq."WMO convention") then
+        LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            yr, mo, &
            da, hr,mn
@@ -1315,8 +1942,8 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
 !EOP
    character(len=10)        :: cdate
    character(len=12)        :: cdate1
-   character(len=100)       :: dname
-   character(len=200)       :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN)       :: out_fname
    character*50             :: wformat_temp
    integer                  :: yr, mo, da, hr, mn, ss
 
@@ -1436,7 +2063,9 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
       end select
       fname = out_fname
       
-   elseif(LIS_rc%wstyle.eq."WMO convention") then 
+   elseif(LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then 
 
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2,i2.2)') &
            yr,mo,da,hr,mn
@@ -1514,8 +2143,8 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
 !EOP
    character(len=10)        :: cdate
    character(len=12)        :: cdate1
-   character(len=100)       :: dname
-   character(len=200)       :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN)       :: out_fname
    character*50             :: wformat_temp
 
 
@@ -1628,7 +2257,9 @@ subroutine create_dapert_filename_withtime(n, fname, yr, mo, da, hr, mn, ss)
       end select
       fname = out_fname
       
-   elseif(LIS_rc%wstyle.eq."WMO convention") then 
+   elseif(LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then 
 
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2,i2.2)') &
            yr,mo,da,hr,mn
@@ -1701,7 +2332,7 @@ subroutine LIS_create_stats_filename(n, fname, mname)
 ! 
 !
 !EOP
-   character(len=200) :: out_fname
+   character(len=LIS_CONST_PATH_LEN) :: out_fname
    character*100      :: cdate
 
    write(unit=cdate, fmt='(a2,i2.2)') '.d',n
@@ -1799,8 +2430,8 @@ subroutine LIS_create_innov_filename(n, k, fname, mname)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -1867,7 +2498,9 @@ subroutine LIS_create_innov_filename(n, k, fname, mname)
       out_fname = trim(out_fname)//trim(cdate)
       
       out_fname = trim(out_fname)//'.nc'
-   elseif(LIS_rc%wstyle.eq."WMO convention") then
+   elseif(LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            LIS_rc%yr, LIS_rc%mo, &
            LIS_rc%da, LIS_rc%hr,LIS_rc%mn
@@ -1976,8 +2609,8 @@ subroutine LIS_create_incr_filename(n, k, fname, mname)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -2044,7 +2677,9 @@ subroutine LIS_create_incr_filename(n, k, fname, mname)
       out_fname = trim(out_fname)//trim(cdate)
       
       out_fname = trim(out_fname)//'.nc'
-   elseif(LIS_rc%wstyle.eq."WMO convention") then
+   elseif(LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            LIS_rc%yr, LIS_rc%mo, &
            LIS_rc%da, LIS_rc%hr,LIS_rc%mn
@@ -2153,8 +2788,8 @@ subroutine LIS_create_daspread_filename(n, k, fname, mname)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -2203,7 +2838,9 @@ subroutine LIS_create_daspread_filename(n, k, fname, mname)
       
       out_fname = trim(out_fname)//'.nc'
    elseif(LIS_rc%wstyle.eq."2 level hierarchy".or.&
-        LIS_rc%wstyle.eq."WMO convention") then
+        LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            LIS_rc%yr, LIS_rc%mo, &
            LIS_rc%da, LIS_rc%hr,LIS_rc%mn
@@ -2263,7 +2900,7 @@ subroutine LIS_create_obs_filename(n, fname, mname)
 ! 
 !
 !EOP
-   character(len=200) :: out_fname
+   character(len=LIS_CONST_PATH_LEN) :: out_fname
    character*100      :: cdate
    character(len=12)       :: cdate1
 
@@ -2642,8 +3279,8 @@ subroutine LIS_create_gain_filename(n, fname, mname)
    character*1             :: fres1(10)
    character(len=1)        :: fproj
    integer                 :: curr_mo = 0
-   character(len=200)       :: dname
-   character(len=200), save :: out_fname
+   character(len=LIS_CONST_PATH_LEN)       :: dname
+   character(len=LIS_CONST_PATH_LEN), save :: out_fname
    integer                  :: i, c
 
    if(LIS_rc%wstyle.eq."4 level hierarchy") then 
@@ -2687,7 +3324,9 @@ subroutine LIS_create_gain_filename(n, fname, mname)
       
       out_fname = trim(out_fname)//'.nc'
    elseif(LIS_rc%wstyle.eq."2 level hierarchy".or.&
-        LIS_rc%wstyle.eq."WMO convention") then
+        LIS_rc%wstyle.eq."WMO convention" .or. &
+        LIS_rc%wstyle.eq."557WW streamflow convention" .or. &
+        LIS_rc%wstyle.eq."557WW medium range forecast convention") then
       write(unit=cdate1, fmt='(i4.4, i2.2, i2.2, i2.2, i2.2)') &
            LIS_rc%yr, LIS_rc%mo, &
            LIS_rc%da, LIS_rc%hr,LIS_rc%mn
@@ -3177,7 +3816,6 @@ subroutine LIS_create_gain_filename(n, fname, mname)
   integer :: ios1
   integer :: ios,nid,paramid,ncId, nrId
   integer :: nc,nr,c,r
-  real    :: param(LIS_rc%gnc(n),LIS_rc%gnr(n))
   logical :: file_exists
 
 #if (defined USE_NETCDF3 || defined USE_NETCDF4)
@@ -3203,17 +3841,14 @@ subroutine LIS_create_gain_filename(n, fname, mname)
      ios = nf90_inq_varid(nid,trim(pname),paramid)
      call LIS_verify(ios,trim(pname)//' field not found in the LIS param file')
 
-     ios = nf90_get_var(nid,paramid,param)
+     ios = nf90_get_var(nid,paramid,array,&
+          start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
+          LIS_nss_halo_ind(n,LIS_localPet+1)/),&
+          count=(/LIS_rc%lnc(n),LIS_rc%lnr(n)/))            
      call LIS_verify(ios,'Error in nf90_get_var in readparam_real_2d')
      
      ios = nf90_close(nid)
      call LIS_verify(ios,'Error in nf90_close in readparam_real_2d')
-
-     array(:,:) = &
-          param(LIS_ews_halo_ind(n,LIS_localPet+1):&         
-          LIS_ewe_halo_ind(n,LIS_localPet+1), &
-          LIS_nss_halo_ind(n,LIS_localPet+1): &
-          LIS_nse_halo_ind(n,LIS_localPet+1))
 
   else
      write(LIS_logunit,*) '[ERR] '//trim(pname)//' map: ',&
@@ -3270,7 +3905,6 @@ end subroutine readparam_real_2d
   integer :: ios1
   integer :: ios,nid,paramid,ncId, nrId
   integer :: nc,nr,c,r
-  real    :: param(LIS_rc%gnc(n),LIS_rc%gnr(n))
   logical :: file_exists
 
 #if (defined USE_NETCDF3 || defined USE_NETCDF4)
@@ -3297,17 +3931,15 @@ end subroutine readparam_real_2d
      if(ios.ne.0) then 
         rc = 1
      else
-        ios = nf90_get_var(nid,paramid,param)
+        ios = nf90_get_var(nid,paramid,array,&
+             start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
+             LIS_nss_halo_ind(n,LIS_localPet+1)/),&
+             count=(/LIS_rc%lnc(n),LIS_rc%lnr(n)/))
         call LIS_verify(ios,'Error in nf90_get_var in readparam_real_2d')
         
         ios = nf90_close(nid)
         call LIS_verify(ios,'Error in nf90_close in readparam_real_2d')
         
-        array(:,:) = &
-             param(LIS_ews_halo_ind(n,LIS_localPet+1):&         
-             LIS_ewe_halo_ind(n,LIS_localPet+1), &
-             LIS_nss_halo_ind(n,LIS_localPet+1): &
-             LIS_nse_halo_ind(n,LIS_localPet+1))
         rc = 0 
      endif
   else
@@ -3542,7 +4174,6 @@ end subroutine readgparam_real_2d_rc
   integer :: ios1
   integer :: ios,nid,paramid,ncId, nrId
   integer :: nc,nr,c,r
-  real    :: param(LIS_rc%gnc(n),LIS_rc%gnr(n))
   logical :: file_exists
 
 #if (defined USE_NETCDF3 || defined USE_NETCDF4)
@@ -3569,17 +4200,14 @@ end subroutine readgparam_real_2d_rc
      ios = nf90_inq_varid(nid,trim(pname),paramid)
      call LIS_verify(ios,trim(pname)//' field not found in the LIS param file')
 
-     ios = nf90_get_var(nid,paramid,param)
+     ios = nf90_get_var(nid,paramid,array,&
+          start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
+          LIS_nss_halo_ind(n,LIS_localPet+1)/),&
+          count=(/LIS_rc%lnc(n),LIS_rc%lnr(n)/))          
      call LIS_verify(ios,'Error in nf90_get_var in readparam_int_2d')
      
      ios = nf90_close(nid)
      call LIS_verify(ios,'Error in nf90_close in readparam_int_2d')
-
-     array(:,:) = &
-          nint(param(LIS_ews_halo_ind(n,LIS_localPet+1):&         
-          LIS_ewe_halo_ind(n,LIS_localPet+1), &
-          LIS_nss_halo_ind(n,LIS_localPet+1): &
-          LIS_nse_halo_ind(n,LIS_localPet+1)))
 
   else
      write(LIS_logunit,*) '[ERR] '//trim(pname)//' map: ',&

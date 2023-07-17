@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -407,7 +407,7 @@ contains
        sopen, nsoillayers, outInterval, lyrthk, &
        nsoillayers2, group, model_name, lyrthk2)
 ! !USES:
-
+    use LIS_constantsMod, only : LIS_CONST_PATH_LEN
 ! !ARGUMENTS: 
     integer,   intent(in)   :: n 
     character(len=*),   intent(in)   :: lsmoutfile
@@ -451,10 +451,12 @@ contains
 !   \end{description}
 !EOP
 
-    integer :: ftn, ftn_stats
+    integer :: ftn, ftn_stats, ftnp(LIS_npes)
     integer :: iret
     integer :: group_temp
-    character*100 :: mname_temp
+    character*100 :: mname_temp,temp1
+    character(len=LIS_CONST_PATH_LEN) :: lsmoutfilep
+    character*1    :: fproc(4)
 
     if(.NOT.PRESENT(group)) then 
        group_temp = 1
@@ -507,6 +509,25 @@ contains
        if(LIS_masterproc) then 
           close(ftn)
        endif
+    elseif(LIS_rc%wout.eq."distributed binary") then
+       ftnp(LIS_localPet+1) = LIS_getNextUnitNumber()
+
+       write(temp1,'(i4.4)') LIS_localPet
+       read(temp1,fmt='(4a1)') fproc
+       
+       lsmoutfilep = trim(lsmoutfile)//'.'//fproc(1)//fproc(2)//fproc(3)//fproc(4)
+       open(ftnp(LIS_localPet+1),file=trim(lsmoutfilep),&
+            form='unformatted')
+
+       write(ftnp(LIS_localPet+1)) LIS_ews_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_ewe_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_nss_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_nse_ind(n,LIS_localPet+1)
+       
+       call writeBinaryDistributedOutput(n,group_temp,ftnp(LIS_localPet+1))
+
+       call LIS_releaseUnitNumber(ftnp(LIS_localPet+1))
+       
     elseif(LIS_rc%wout.eq."grib1") then 
 #if(defined USE_GRIBAPI)
        if(LIS_masterproc) then 
@@ -575,6 +596,7 @@ contains
        sopen, nsoillayers, outInterval, lyrthk, &
        nsoillayers2, group, model_name, lyrthk2)
 ! !USES:
+    use LIS_constantsMod, only : LIS_CONST_PATH_LEN
 
 ! !ARGUMENTS: 
     integer,   intent(in)   :: n 
@@ -619,10 +641,12 @@ contains
 !   \end{description}
 !EOP
 
-    integer :: ftn, ftn_stats
+    integer :: ftn, ftn_stats, ftnp(LIS_npes)
     integer :: iret
     integer :: group_temp
-    character*100 :: mname_temp
+    character*100 :: mname_temp, temp1
+    character(len=LIS_CONST_PATH_LEN) :: routingoutfilep
+    character*1   :: fproc(4)
 
     if(.NOT.PRESENT(group)) then 
        group_temp = 1
@@ -670,6 +694,26 @@ contains
     if(LIS_rc%wout.eq."binary") then 
        write(LIS_logunit,*)'[ERR] binary routing model outputs are not supported'
        call LIS_endrun()
+    elseif(LIS_rc%wout.eq."distributed binary") then
+
+       ftnp(LIS_localPet+1) = LIS_getNextUnitNumber()
+
+       write(temp1,'(i4.4)') LIS_localPet
+       read(temp1,fmt='(4a1)') fproc
+       
+       routingoutfilep = trim(routingoutfile)//'.'//fproc(1)//fproc(2)//fproc(3)//fproc(4)
+       open(ftnp(LIS_localPet+1),file=trim(routingoutfilep),&
+            form='unformatted')
+
+       write(ftnp(LIS_localPet+1)) LIS_ews_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_ewe_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_nss_ind(n,LIS_localPet+1)
+       write(ftnp(LIS_localPet+1)) LIS_nse_ind(n,LIS_localPet+1)
+       
+       call writeRoutingBinaryDistributedOutput(n,group_temp,ftnp(LIS_localPet+1))
+
+       call LIS_releaseUnitNumber(ftnp(LIS_localPet+1))       
+       
     elseif(LIS_rc%wout.eq."grib1") then 
 #if(defined USE_GRIBAPI)
        write(LIS_logunit,*)'[ERR] grib1 routing model outputs are not supported'
@@ -758,6 +802,104 @@ contains
     
   end subroutine writeBinaryOutput
 
+
+!BOP
+! 
+! !ROUTINE: writeBinaryDistributedOutput
+! \label{writeBinaryDistributedOutput}
+! 
+! !INTERFACE: 
+  subroutine writeBinaryDistributedOutput(n, group, ftn)
+!  !USES: 
+
+! !ARGUMENTS: 
+    implicit none
+    integer,   intent(in)   :: n 
+    integer,   intent(in)   :: group
+    integer,   intent(in)   :: ftn
+
+! 
+! !DESCRIPTION: 
+!  This routine writes a binary distributed
+!  output file based on the list of selected output variables. 
+!  The arguments are: 
+!  \begin{description}
+!    \item[n] index of the nest \newline
+!    \item[group] output group (LSM, routing, RTM) \newline
+!    \item[ftn] file unit for the output file \newline
+!    \item[ftn\_stats] file unit for the output statistics file \newline
+!  \end{description}
+!
+!   The routines invoked are: 
+!   \begin{description}
+!   \item[writeSingleBinaryVar](\ref{writeSingleBinaryVar}) \newline
+!     writes a single variable into a flat binary file. 
+!   \end{description}
+!EOP
+    type(LIS_metadataEntry), pointer :: dataEntry
+
+    if(group.eq.1) then !LSM output
+       dataEntry => LIS_histData(n)%head_lsm_list
+    elseif(group.eq.2) then !ROUTING
+       dataEntry => LIS_histData(n)%head_routing_list
+    elseif(group.eq.3) then !RTM
+       dataEntry => LIS_histData(n)%head_rtm_list
+    elseif(group.eq.4) then !Irrigation
+       dataEntry => LIS_histData(n)%head_irrig_list
+    endif
+
+
+    do while ( associated(dataEntry) )
+       call writeSingleBinaryDistributedVar(ftn,n,dataEntry)
+       dataEntry => dataEntry%next
+    enddo
+    
+  end subroutine writeBinaryDistributedOutput
+
+!BOP
+! 
+! !ROUTINE: writeRoutingBinaryDistributedOutput
+! \label{writeRoutingBinaryDistributedOutput}
+! 
+! !INTERFACE: 
+  subroutine writeRoutingBinaryDistributedOutput(n, group, ftn)
+!  !USES: 
+
+! !ARGUMENTS: 
+    implicit none
+    integer,   intent(in)   :: n 
+    integer,   intent(in)   :: group
+    integer,   intent(in)   :: ftn
+
+! 
+! !DESCRIPTION: 
+!  This routine writes a binary distributed output file
+!  based on the list of selected routing output variables. 
+!  The arguments are: 
+!  \begin{description}
+!    \item[n] index of the nest \newline
+!    \item[group] output group (LSM, routing, RTM) \newline
+!    \item[ftn] file unit for the output file \newline
+!    \item[ftn\_stats] file unit for the output statistics file \newline
+!  \end{description}
+!
+!   The routines invoked are: 
+!   \begin{description}
+!   \item[writeSingleBinaryVar](\ref{writeSingleBinaryVar}) \newline
+!     writes a single variable into a flat binary file. 
+!   \end{description}
+!EOP
+    type(LIS_metadataEntry), pointer :: dataEntry
+
+    dataEntry => LIS_histData(n)%head_routing_list
+
+    do while ( associated(dataEntry) )
+       call writeRoutingSingleBinaryDistributedVar(ftn,n,dataEntry)
+       dataEntry => dataEntry%next
+    enddo
+    
+  end subroutine writeRoutingBinaryDistributedOutput
+  
 !BOP
 !
 ! !ROUTINE: writeSingleBinaryVar
@@ -890,6 +1032,212 @@ contains
     endif
   end subroutine writeSingleBinaryVar
 
+!BOP
+!
+! !ROUTINE: writeSingleBinaryDistributedVar
+! \label{writeSingleBinaryDistributedVar}
+! 
+! !INTERFACE:
+  subroutine writeSingleBinaryDistributedVar(ftn, n, dataEntry)
+! !USES: 
+
+    implicit none
+! !ARGUMENTS: 
+    integer :: ftn
+    integer :: n 
+    type(LIS_metadataEntry), pointer :: dataEntry
+! 
+! !DESCRIPTION: 
+!  This routine writes a single variable to a distributed binary file
+!  The arguments are: 
+!  \begin{description}
+!    \item[n] index of the nest
+!    \item[ftn] file unit for the output file
+!    \item[ftn\_stats] file unit for the output statistics file
+!    \item[dataEntry] object containing the specifications for 
+!                     the output variable
+!  \end{description}
+!
+!   The routines invoked are: 
+!   \begin{description}
+!   \item[LIS\_writevar\_bin](\ref{LIS_writevar_bin})
+!     writes a variable into a flat binary file. 
+!   \item[LIS\_endrun](\ref{LIS_endrun})
+!     call to abort program when a fatal error is detected. 
+!   \end{description}
+!EOP
+    integer :: k,i
+
+    real, allocatable    :: var(:), meanv(:), stdv(:)
+    character*100        :: mvar,units
+    integer :: t, m, c
+
+    if(dataEntry%selectOpt.eq.1) then 
+
+       do t=1,LIS_rc%ntiles(n)
+          m = LIS_domain(n)%tile(t)%sftype
+          do k=1,dataEntry%vlevels
+             if(dataEntry%count(t,k).gt.0) then 
+                if(dataEntry%timeAvgOpt.eq.3) then  !do nothing
+                   continue       
+                elseif(dataEntry%timeAvgOpt.eq.2.or.dataEntry%timeAvgOpt.eq.1) then
+                   dataEntry%modelOutput(1,t,k) = dataEntry%modelOutput(1,t,k)/&
+                        dataEntry%count(t,k)
+                else !do nothing
+                   continue
+                endif
+             else
+                dataEntry%modelOutput(1,t,k) = LIS_rc%udef
+             endif
+          enddo
+       enddo
+
+       
+       if(dataEntry%timeAvgOpt.eq.0) then
+          mvar = trim(dataEntry%short_name)//'_inst'
+       elseif(dataEntry%timeAvgOpt.eq.1) then
+          mvar = trim(dataEntry%short_name)//'_tavg'
+       elseif(dataEntry%timeAvgOpt.eq.3) then
+          mvar = trim(dataEntry%short_name)//'_acc'
+       endif
+       units = dataEntry%units
+       
+       write(ftn) dataEntry%vlevels
+       write(ftn) mvar
+       write(ftn) units
+       
+       do k=1,dataEntry%vlevels
+          ! accumulated values
+          ! time-averaged values and instantaneous values
+          if(dataEntry%timeAvgOpt.eq.2) then 
+             call writevar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+             call writevar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(2,:,k),&
+                  dataEntry%form)
+             ! time-averaged or instantaneous values
+          elseif(dataEntry%timeAvgOpt.eq.3) then 
+             call writevar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+          elseif(dataEntry%timeAvgOpt.eq.0) then 
+             call writevar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)             
+          elseif(dataEntry%timeAvgOpt.eq.1) then 
+             call writevar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+          endif
+          
+       enddo
+    endif
+  end subroutine writeSingleBinaryDistributedVar
+
+!BOP
+!
+! !ROUTINE: writeRoutingSingleBinaryDistributedVar
+! \label{writeRoutingSingleBinaryDistributedVar}
+! 
+! !INTERFACE:
+  subroutine writeRoutingSingleBinaryDistributedVar(ftn, n, dataEntry)
+! !USES: 
+
+    implicit none
+! !ARGUMENTS: 
+    integer :: ftn
+    integer :: n 
+    type(LIS_metadataEntry), pointer :: dataEntry
+! 
+! !DESCRIPTION: 
+!  This routine writes a single routing variable to a distributed binary file
+!  The arguments are: 
+!  \begin{description}
+!    \item[n] index of the nest
+!    \item[ftn] file unit for the output file
+!    \item[ftn\_stats] file unit for the output statistics file
+!    \item[dataEntry] object containing the specifications for 
+!                     the output variable
+!  \end{description}
+!
+!   The routines invoked are: 
+!   \begin{description}
+!   \item[LIS\_writevar\_bin](\ref{LIS_writevar_bin})
+!     writes a variable into a flat binary file. 
+!   \item[LIS\_endrun](\ref{LIS_endrun})
+!     call to abort program when a fatal error is detected. 
+!   \end{description}
+!EOP
+    integer :: k,i
+
+    real, allocatable    :: var(:), meanv(:), stdv(:)
+    character*100        :: mvar,units
+    integer :: t, m, c
+
+    if(dataEntry%selectOpt.eq.1) then 
+
+       do t=1,LIS_rc%nroutinggrid(n)*LIS_rc%nensem(n)
+          do k=1,dataEntry%vlevels
+             if(dataEntry%count(t,k).gt.0) then 
+                if(dataEntry%timeAvgOpt.eq.3) then  !do nothing
+                   continue       
+                elseif(dataEntry%timeAvgOpt.eq.2.or.&
+                     dataEntry%timeAvgOpt.eq.1) then
+                   dataEntry%modelOutput(1,t,k) = dataEntry%modelOutput(1,t,k)/&
+                        dataEntry%count(t,k)
+                else !do nothing
+                   continue
+                endif
+             else
+                dataEntry%modelOutput(1,t,k) = LIS_rc%udef
+             endif
+          enddo
+       enddo
+
+       
+       if(dataEntry%timeAvgOpt.eq.0) then
+          mvar = trim(dataEntry%short_name)//'_inst'
+       elseif(dataEntry%timeAvgOpt.eq.1) then
+          mvar = trim(dataEntry%short_name)//'_tavg'
+       elseif(dataEntry%timeAvgOpt.eq.3) then
+          mvar = trim(dataEntry%short_name)//'_acc'
+       endif
+       units = dataEntry%units
+       
+       write(ftn) dataEntry%vlevels
+       write(ftn) mvar
+       write(ftn) units
+       
+       do k=1,dataEntry%vlevels
+          ! accumulated values
+          ! time-averaged values and instantaneous values
+          if(dataEntry%timeAvgOpt.eq.2) then 
+             call writeroutingvar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+             call writeroutingvar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(2,:,k),&
+                  dataEntry%form)
+             ! time-averaged or instantaneous values
+          elseif(dataEntry%timeAvgOpt.eq.3) then 
+             call writeroutingvar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+          elseif(dataEntry%timeAvgOpt.eq.0) then 
+             call writeroutingvar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)             
+          elseif(dataEntry%timeAvgOpt.eq.1) then 
+             call writeroutingvar_dist_bin(ftn,n,&
+                  dataEntry%modelOutput(1,:,k),&
+                  dataEntry%form)
+          endif
+          
+       enddo
+    endif
+  end subroutine writeRoutingSingleBinaryDistributedVar
+  
 !BOP
 ! !ROUTINE: writeGribOutput
 ! \label{writeGribOutput}
@@ -1731,15 +2079,15 @@ contains
        endif
 
        ! LIS output is always writing output for a single time
-       call LIS_verify(nf90_def_dim(ftn,'time',1,tdimID),&
+       call LIS_verify(nf90_def_dim(ftn,'time',NF90_UNLIMITED,tdimID),&
             'nf90_def_dim for time failed in LIS_historyMod')
        call LIS_verify(nf90_put_att(ftn,NF90_GLOBAL,"missing_value", LIS_rc%udef),&
             'nf90_put_att for missing_value failed in LIS_historyMod')
        
        call defineNETCDFheaderVar(n,ftn,dimID, xlat,&
-            non_model_fields = .true. )       
+            non_model_fields = 1 )       
        call defineNETCDFheaderVar(n,ftn,dimID, xlong, &
-            non_model_fields = .true. )              
+            non_model_fields = 2 )              
 
        ! defining time field
        call LIS_verify(nf90_def_var(ftn,'time',&
@@ -1911,8 +2259,8 @@ contains
        xlat%modelOutput(1,t,1) = LIS_domain(n)%grid(index1)%lat
        xlong%modelOutput(1,t,1) = LIS_domain(n)%grid(index1)%lon
     enddo
-    call writeSingleNETCDFvar(ftn,ftn_stats,n,xlat,non_model_fields = .true.)
-    call writeSingleNETCDFvar(ftn,ftn_stats,n,xlong, non_model_fields = .true.)
+    call writeSingleNETCDFvar(ftn,ftn_stats,n,xlat,non_model_fields =1)
+    call writeSingleNETCDFvar(ftn,ftn_stats,n,xlong, non_model_fields = 2)
 
     if(LIS_masterproc) then 
        call LIS_verify(nf90_put_var(ftn,xtimeID,0.0),&
@@ -2095,15 +2443,15 @@ contains
        endif
 
        ! LIS output is always writing output for a single time
-       call LIS_verify(nf90_def_dim(ftn,'time',1,tdimID),&
+       call LIS_verify(nf90_def_dim(ftn,'time',NF90_UNLIMITED,tdimID),&
             'nf90_def_dim for time failed in LIS_historyMod')
        call LIS_verify(nf90_put_att(ftn,NF90_GLOBAL,"missing_value", LIS_rc%udef),&
             'nf90_put_att for missing_value failed in LIS_historyMod')
        
        call defineNETCDFheaderVar(n,ftn,dimID, xlat,&
-            non_model_fields = .true. )       
+            non_model_fields = 1 )       
        call defineNETCDFheaderVar(n,ftn,dimID, xlong, &
-            non_model_fields = .true. )              
+            non_model_fields = 2 )              
 
        ! defining time field
        call LIS_verify(nf90_def_var(ftn,'time',&
@@ -2273,9 +2621,9 @@ contains
     enddo
 
     call writeSingleRoutingNETCDFvar(ftn,ftn_stats,n,xlat,&
-         non_model_fields = .true.)
+         non_model_fields = 1)
     call writeSingleRoutingNETCDFvar(ftn,ftn_stats,n,xlong, &
-         non_model_fields = .true.)
+         non_model_fields = 2)
 
     if(LIS_masterproc) then 
        call LIS_verify(nf90_put_var(ftn,xtimeID,0.0),&
@@ -2325,7 +2673,7 @@ contains
     integer                           :: n
     integer                           :: ftn
     type(LIS_metadataEntry), pointer  :: dataEntry
-    logical,   optional               :: non_model_fields
+    integer,   optional               :: non_model_fields
     integer                           :: dimID(4)
 ! 
 ! !DESCRIPTION: 
@@ -2352,7 +2700,7 @@ contains
 !     call to check if the return value is valid or not.
 !   \end{description}
 !EOP
-    logical       :: nmodel_status
+    integer       :: nmodel_status
     integer       :: data_index
     integer       :: shuffle, deflate, deflate_level
     character*100 :: short_name
@@ -2365,7 +2713,7 @@ contains
 
 #if(defined USE_NETCDF3 || defined USE_NETCDF4)
 
-    nmodel_status = .false.
+    nmodel_status = 0
     if(present(non_model_fields)) then 
        nmodel_status = non_model_fields
     endif
@@ -2564,7 +2912,7 @@ contains
 
              endif
           else
-             if(.not.nmodel_status) then 
+             if(nmodel_status==0) then 
                 if(dataEntry%timeAvgOpt.eq.0) then
                    short_name = trim(dataEntry%short_name)//'_inst'
                 elseif(dataEntry%timeAvgOpt.eq.1) then
@@ -2854,7 +3202,7 @@ contains
 
              endif
           else
-             if(.not.nmodel_status) then 
+             if(nmodel_status==0) then 
                 if(dataEntry%timeAvgOpt.eq.0) then
                    short_name = trim(dataEntry%short_name)//'_inst'
                 elseif(dataEntry%timeAvgOpt.eq.1) then
@@ -2922,11 +3270,37 @@ contains
 #endif
                 endif
              else ! 1 vertical level
-                call LIS_verify(nf90_def_var(ftn,trim(short_name),&
-                     nf90_float,&
-                     dimids = dimID(1:2), varID=dataEntry%varId_def),&
-                     'nf90_def_var for '//trim(short_name)//&
-                     'failed in defineNETCDFheadervar')                     
+                ! lat/lon fields will write in 1D  
+                if(LIS_rc%nlatlon_dimensions == '1D') then
+                   if(nmodel_status.eq.1) then
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(2), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')                     
+                   elseif(nmodel_status.eq.2) then
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(1), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')                     
+                   else
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(1:2), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')
+                   endif
+                ! lat/lon fields will write in 2D
+                else
+                   call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                        nf90_float,&
+                        dimids = dimID(1:2), varID=dataEntry%varID_def),&
+                        'nf90_def_var for '//trim(short_name)//&
+                        'failed in defineNETCDFheadervar')
+                endif
+               
+
 #if(defined USE_NETCDF4)
                 call LIS_verify(nf90_def_var_fill(ftn,&
                      dataEntry%varId_def, &
@@ -3063,11 +3437,38 @@ contains
 
 !EMK END
              else  ! 1 vertical level
-                call LIS_verify(nf90_def_var(ftn,trim(dataEntry%short_name)//'_tavg',&
-                     nf90_float,&
-                     dimids = dimID(1:3), varID=dataEntry%varId_def),&
-                     'nf90_def_var for '//trim(dataEntry%short_name)//&
-                     'failed in defineNETCDFheadervar')                     
+                ! lat/lon field output will write in 1D 
+                if(LIS_rc%nlatlon_dimensions == '1D') then
+                   if(nmodel_status.eq.1) then
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(2), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')                     
+                   elseif(nmodel_status.eq.2) then
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(1), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')                     
+                   else                
+                      call LIS_verify(nf90_def_var(ftn,trim(dataEntry%short_name)//'_tavg',&
+                           nf90_float,&
+                           dimids = dimID(1:3), varID=dataEntry%varId_def),&
+                           'nf90_def_var for '//trim(dataEntry%short_name)//&
+                           'failed in defineNETCDFheadervar')
+                   endif
+                ! latlon field output will write in 2D
+                else
+                     call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                         nf90_float,&
+                         dimids = dimID(1:2), varID=dataEntry%varID_def),&
+                         'nf90_def_var for '//trim(short_name)//&
+                         'failed in defineNETCDFheadervar')
+                endif 
+
+
+
 #if(defined USE_NETCDF4)
 
                 call LIS_verify(nf90_def_var_fill(ftn,&
@@ -3141,7 +3542,7 @@ contains
 
              endif
           else
-             if(.not.nmodel_status) then 
+             if(nmodel_status==0) then 
                 if(dataEntry%timeAvgOpt.eq.0) then
                    short_name = trim(dataEntry%short_name)//'_inst'
                 elseif(dataEntry%timeAvgOpt.eq.1) then
@@ -3209,18 +3610,42 @@ contains
 #endif
                 endif
              else
-                if(.not.nmodel_status) then                 
+                if(nmodel_status==0) then                 
                    call LIS_verify(nf90_def_var(ftn,trim(short_name),&
                         nf90_float,&
                         dimids = dimID(1:3), varID=dataEntry%varId_def),&
                         'nf90_def_var for '//trim(short_name)//&
                         'failed in defineNETCDFheadervar')                     
                 else
-                   call LIS_verify(nf90_def_var(ftn,trim(short_name),&
-                        nf90_float,&
-                        dimids = dimID(1:2), varID=dataEntry%varId_def),&
-                        'nf90_def_var for '//trim(short_name)//&
-                        'failed in defineNETCDFheadervar')                     
+                   ! lat/lon field output will write in 1D
+                   if(LIS_rc%nlatlon_dimensions == '1D') then
+                      if(nmodel_status.eq.1) then
+                         call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                              nf90_float,&
+                              dimids = dimID(2), varID=dataEntry%varId_def),&
+                              'nf90_def_var for '//trim(short_name)//&
+                              'failed in defineNETCDFheadervar')                     
+                      elseif(nmodel_status.eq.2) then
+                         call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                              nf90_float,&
+                              dimids = dimID(1), varID=dataEntry%varId_def),&
+                              'nf90_def_var for '//trim(short_name)//&
+                              'failed in defineNETCDFheadervar')                     
+                      else 
+                         call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                              nf90_float,&
+                              dimids = dimID(1:2), varID=dataEntry%varId_def),&
+                              'nf90_def_var for '//trim(short_name)//&
+                              'failed in defineNETCDFheadervar')
+                      endif
+                   ! lat/lon field output will write in 2D
+                   else
+                      call LIS_verify(nf90_def_var(ftn,trim(short_name),&
+                           nf90_float,&
+                           dimids = dimID(1:2), varID=dataEntry%varID_def),&
+                           'nf90_def_var for '//trim(short_name)//&
+                           'failed in defineNETCDFheadervar')
+                   endif
                 endif
 #if(defined USE_NETCDF4)
                 call LIS_verify(nf90_def_var_fill(ftn,&
@@ -3416,7 +3841,7 @@ contains
     integer,   intent(in)   :: ftn
     integer,   intent(in)   :: ftn_stats
     type(LIS_metadataEntry), pointer :: dataEntry
-    logical,   optional     :: non_model_fields
+    integer,   optional     :: non_model_fields
 ! 
 ! !DESCRIPTION: 
 !  This routine writes a single variable to a NETCDF file
@@ -3437,19 +3862,19 @@ contains
 !   \end{description}
 !EOP    
     integer       :: i,k,m,t
-    logical       :: nmodel_status
+    integer       :: nmodel_status
 
-    nmodel_status = .false.
+    nmodel_status = 0
     if(present(non_model_fields)) then 
        nmodel_status = non_model_fields
     endif
 
     if(dataEntry%selectOpt.eq.1) then
 
-       if(.not.nmodel_status) then
+       if(nmodel_status==0) then
 
           do t=1,LIS_rc%ntiles(n)
-             if(nmodel_status) then 
+             if(nmodel_status==0) then 
                 m = 1
              else
                 m = LIS_domain(n)%tile(t)%sftype
@@ -3536,7 +3961,7 @@ contains
     integer,   intent(in)   :: ftn
     integer,   intent(in)   :: ftn_stats
     type(LIS_metadataEntry), pointer :: dataEntry
-    logical,   optional     :: non_model_fields
+    integer,   optional     :: non_model_fields
 ! 
 ! !DESCRIPTION: 
 !  This routine writes a single variable to a NETCDF file
@@ -3557,16 +3982,16 @@ contains
 !   \end{description}
 !EOP    
     integer       :: i,k,t
-    logical       :: nmodel_status
+    integer       :: nmodel_status
 
-    nmodel_status = .false.
+    nmodel_status = 0
     if(present(non_model_fields)) then 
        nmodel_status = non_model_fields
     endif
 
     if(dataEntry%selectOpt.eq.1) then
 
-       if(.not.nmodel_status) then
+       if(nmodel_status==0) then
 
           do t=1,LIS_rc%nroutinggrid(n)*LIS_rc%nensem(n)
              do k=1,dataEntry%vlevels
@@ -3650,7 +4075,7 @@ contains
     integer,   intent(in)     :: m
     integer,   intent(in)     :: ftn
     character(len=*), intent(in) :: model_name
-    integer                   :: dimID(10)
+    integer                   :: dimID(11)
     integer,    optional      :: dim1
     integer,    optional      :: dim2
     integer,    optional      :: dim3
@@ -3755,7 +4180,7 @@ contains
           endif
           if(present(dim10)) then
              call LIS_verify(nf90_def_dim(ftn,"dim10",&
-                  dim10,dimID(10)),&
+                  dim10,dimID(11)),&
                   'nf90_def_dim failed for dim10 in LIS_writeGlobalHeader_restart')
           endif
           call LIS_verify(nf90_put_att(ftn,NF90_GLOBAL,"missing_value", &
@@ -3900,7 +4325,7 @@ contains
 ! !ARGUMENTS:     
     integer                    :: ftn
     integer                    :: n
-    integer                    :: dimID(10)
+    integer                    :: dimID(11)
     integer                    :: vid
     character(len=*)           :: standard_name
     character(len=*)           :: long_name
@@ -3972,6 +4397,8 @@ contains
           dimID_t(2) = dimID(9)
        elseif(var_flag_tmp.eq."dim9") then 
           dimID_t(2) = dimID(10)
+       elseif(var_flag_tmp.eq."dim10") then 
+          dimID_t(2) = dimID(11)
        elseif(var_flag_tmp.eq."tbot_lagday") then 
           call LIS_verify(nf90_inq_dimid(ftn, "tbot_lagday", dimID_t(2)),&
                'nf90_inq_dimid for tbot_lagday failed '//&
@@ -4202,7 +4629,7 @@ contains
             "vmax",0.0),&
             'nf90_put_att failed for xlong:vmax')
        !defining time field
-       call LIS_verify(nf90_def_dim(ftn,'time',1,tdimID),&
+       call LIS_verify(nf90_def_dim(ftn,'time',NF90_UNLIMITED,tdimID),&
             'nf90_def_dim failed for time')
        
        call LIS_verify(nf90_def_var(ftn,'time',&
@@ -4368,6 +4795,242 @@ contains
     endif
   end subroutine writevar_bin_withstats_real
 
+!BOP
+! !ROUTINE: writevar_dist_bin
+! \label{writevar_dist_bin}
+! 
+! !INTERFACE:
+! Private name: call using LIS_writevar_bin
+  subroutine writevar_dist_bin(ftn,n,var,form)
+! !USES: 
+
+    implicit none
+! !ARGUMENTS: 
+    integer, intent(in) :: n
+    integer, intent(in) :: ftn
+    real, intent(in)    :: var(LIS_rc%ntiles(n))
+    integer, intent(in) :: form
+! !DESCRIPTION:
+!  Write a real variable to a binary output file with a number of diagnostic 
+!  statistics (mean, standardar deviation, min/max during the temporal output
+!  interval) written to a text file. 
+!
+!  The arguments are: 
+!  \begin{description}
+!   \item [n]
+!     index of the domain or nest.
+!   \item [ftn]
+!     unit number of the binary output file
+!   \item [ftn\_stats]
+!     unit number of the ASCII text statistics file
+!   \item [var]
+!     variables being written, dimensioned in the tile space
+!   \item[mvar]
+!     short name of the variable being written (will be used in the stats file)
+!   \item[form]
+!     format to be used in the stats file (1-decimal format, 
+!     2-scientific format)
+!  \end{description}
+!
+!  The routines invoked are: 
+!  \begin{description}
+!   \item[LIS\_gather\_tiled\_vector\_output](\ref{LIS_gather_tiled_vector_output})
+!     call to gather the 1d tiled output variables in tile space
+!   \item[LIS\_gather\_gridded\_output](\ref{LIS_gather_gridded_output})
+!     call to gather the 1d tiled output variable into a 2d gridded array
+!   \item[LIS\_gather\_gridded\_vector\_output](\ref{LIS_gather_gridded_vector_output})
+!     call to gather the 1d tiled output variable into a 1d gridded array
+!   \item[write\_stats](\ref{write_stats})
+!     call to compute the diagnostic statistics
+!  \end{description}
+!
+!EOP
+    REAL          :: gtmp(LIS_rc%lnc(n),LIS_rc%lnr(n))
+    integer       :: gid, c,r,i,t,m
+    
+    if(LIS_rc%wopt.eq."1d tilespace") then !tiled output
+       write(LIS_logunit,*) '[ERR] 1d tilespace option is not supported'
+       write(LIS_logunit,*) '[ERR] in the distributed binary mode'
+       call LIS_endrun()
+       
+    elseif(LIS_rc%wopt.eq."2d gridspace") then !2d gridded output
+
+       gtmp = LIS_rc%udef
+       
+       do i=1,LIS_rc%ntiles(n),LIS_rc%nensem(n)
+
+          gid = LIS_domain(n)%tile(i)%index
+
+          c = LIS_domain(n)%grid(gid)%col
+          r = LIS_domain(n)%grid(gid)%row
+
+          gtmp(c,r) = 0.0
+          
+          do m=1,LIS_rc%nensem(n)
+             t = i+m-1
+             if ( var(t) == -9999.0 ) then
+                gtmp(c,r) = -9999.0
+             else
+                gtmp(c,r) = gtmp(c,r)+&
+                     var(t)*LIS_domain(n)%tile(t)%fgrd*&
+                     LIS_domain(n)%tile(t)%pens
+             endif
+          enddo                    
+       enddo       
+       
+       write(ftn) gtmp
+
+    elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then !2d gridded output
+
+       do m=1, LIS_rc%nensem(n)
+
+          gtmp = -9999.0
+          
+          do i=1,LIS_rc%ntiles(n),LIS_rc%nensem(n)
+             
+             gid = LIS_domain(n)%tile(i)%index
+             
+             c = LIS_domain(n)%grid(gid)%col
+             r = LIS_domain(n)%grid(gid)%row
+             
+             t = i+m-1
+             
+             if ( var(t) == -9999.0 ) then
+                gtmp(c,r) = -9999.0
+             else
+                gtmp(c,r) = var(t)
+             endif
+          enddo
+          write(ftn) gtmp
+       enddo             
+       
+    elseif(LIS_rc%wopt.eq."1d gridspace") then !1d gridded output
+
+       write(LIS_logunit,*) '[ERR] 1d gridspace option is not supported'
+       write(LIS_logunit,*) '[ERR] in the distributed binary mode'
+       call LIS_endrun()
+       
+    endif
+  end subroutine writevar_dist_bin
+
+!BOP
+! !ROUTINE: writeroutingvar_dist_bin
+! \label{writeroutingvar_dist_bin}
+! 
+! !INTERFACE:
+! Private name: call using LIS_writeroutingvar_bin
+  subroutine writeroutingvar_dist_bin(ftn,n,var,form)
+! !USES: 
+
+    implicit none
+! !ARGUMENTS: 
+    integer, intent(in) :: n
+    integer, intent(in) :: ftn
+    real, intent(in)    :: var(LIS_rc%nroutinggrid(n)*LIS_rc%nensem(n))
+    integer, intent(in) :: form
+! !DESCRIPTION:
+!  Write a real variable to a binary output file with a number of diagnostic 
+!  statistics (mean, standardar deviation, min/max during the temporal output
+!  interval) written to a text file. 
+!
+!  The arguments are: 
+!  \begin{description}
+!   \item [n]
+!     index of the domain or nest.
+!   \item [ftn]
+!     unit number of the binary output file
+!   \item [ftn\_stats]
+!     unit number of the ASCII text statistics file
+!   \item [var]
+!     variables being written, dimensioned in the tile space
+!   \item[mvar]
+!     short name of the variable being written (will be used in the stats file)
+!   \item[form]
+!     format to be used in the stats file (1-decimal format, 
+!     2-scientific format)
+!  \end{description}
+!
+!  The routines invoked are: 
+!  \begin{description}
+!   \item[LIS\_gather\_tiled\_vector\_output](\ref{LIS_gather_tiled_vector_output})
+!     call to gather the 1d tiled output variables in tile space
+!   \item[LIS\_gather\_gridded\_output](\ref{LIS_gather_gridded_output})
+!     call to gather the 1d tiled output variable into a 2d gridded array
+!   \item[LIS\_gather\_gridded\_vector\_output](\ref{LIS_gather_gridded_vector_output})
+!     call to gather the 1d tiled output variable into a 1d gridded array
+!   \item[write\_stats](\ref{write_stats})
+!     call to compute the diagnostic statistics
+!  \end{description}
+!
+!EOP
+    REAL          :: gtmp(LIS_rc%lnc(n),LIS_rc%lnr(n))
+    integer       :: gid, c,r,i,t,m
+    
+    if(LIS_rc%wopt.eq."1d tilespace") then !tiled output
+       write(LIS_logunit,*) '[ERR] 1d tilespace option is not supported'
+       write(LIS_logunit,*) '[ERR] in the distributed binary mode'
+       call LIS_endrun()
+       
+    elseif(LIS_rc%wopt.eq."2d gridspace") then !2d gridded output
+
+       gtmp = LIS_rc%udef
+       
+       do i=1,LIS_rc%nroutinggrid(n),LIS_rc%nensem(n)
+
+          gid = LIS_routing(n)%tile(i)%index
+
+          c = LIS_routing(n)%grid(gid)%col
+          r = LIS_routing(n)%grid(gid)%row
+
+          gtmp(c,r) = 0.0
+          
+          do m=1,LIS_rc%nensem(n)
+             t = i+m-1
+             if ( var(t) == -9999.0 ) then
+                gtmp(c,r) = -9999.0
+             else
+                gtmp(c,r) = gtmp(c,r)+&
+                     var(t)*LIS_routing(n)%tile(t)%fgrd*&
+                     LIS_routing(n)%tile(t)%pens
+             endif
+          enddo                    
+       enddo       
+       
+       write(ftn) gtmp
+
+    elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then !2d gridded output
+
+       do m=1, LIS_rc%nensem(n)
+
+          gtmp = -9999.0
+          
+          do i=1,LIS_rc%nroutinggrid(n),LIS_rc%nensem(n)
+             
+             gid = LIS_routing(n)%tile(i)%index
+             
+             c = LIS_routing(n)%grid(gid)%col
+             r = LIS_routing(n)%grid(gid)%row
+             
+             t = i+m-1
+             
+             if ( var(t) == -9999.0 ) then
+                gtmp(c,r) = -9999.0
+             else
+                gtmp(c,r) = var(t)
+             endif
+          enddo
+          write(ftn) gtmp
+       enddo             
+       
+    elseif(LIS_rc%wopt.eq."1d gridspace") then !1d gridded output
+
+       write(LIS_logunit,*) '[ERR] 1d gridspace option is not supported'
+       write(LIS_logunit,*) '[ERR] in the distributed binary mode'
+       call LIS_endrun()
+       
+    endif
+  end subroutine writeroutingvar_dist_bin
+  
 !BOP
 ! !ROUTINE: writevar_bin_real
 ! \label{writevar_bin_real}
@@ -5936,8 +6599,9 @@ contains
     real, intent(in)    :: var(LIS_rc%ntiles(n))
     character (len=*)   :: mvar
     integer, intent(in) :: form
-    logical, intent(in) :: nmodel_status
+    integer, intent(in) :: nmodel_status
     integer, intent(in), optional :: dim1
+    integer             :: gindex
 !
 ! !DESCRIPTION:
 !  Write a real variable to a netcdf output file with some diagnostic 
@@ -5976,6 +6640,7 @@ contains
     real, allocatable :: var1(:)
     real, allocatable :: var1_ens(:,:)
     real, allocatable :: gtmp(:,:)
+    real, allocatable :: gtmplat(:),gtmplon(:)
     real, allocatable :: gtmp_ens(:,:,:)
     real, allocatable :: gtmp1(:)
     real, allocatable :: gtmp1_ens(:,:)
@@ -6015,7 +6680,8 @@ contains
        endif
 
     ! Write output in 2d grid space:
-    elseif(LIS_rc%wopt.eq."2d gridspace") then 
+    elseif(LIS_rc%wopt.eq."2d gridspace") then
+       
        allocate(var1(LIS_rc%ngrid(n)))
        if(LIS_masterproc) then 
           allocate(gtmp(LIS_rc%gnc(n),LIS_rc%gnr(n)))
@@ -6070,13 +6736,61 @@ contains
                 enddo
              enddo
           enddo
-          if(PRESENT(dim1)) then 
-             iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
-                                 (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
-          else            
-             iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
-                                 (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
-          endif 
+
+          ! The latlon fields are written to 1D
+          if(LIS_rc%nlatlon_dimensions == '1D') then
+             if(nmodel_status.eq.1) then   ! lat
+                allocate(gtmplat(LIS_rc%gnr(n)))
+                gtmplat = LIS_rc%udef
+             
+                do r=1,LIS_rc%gnr(n)
+                   do c=1,LIS_rc%gnc(n)
+                     gindex = c+(r-1)*LIS_rc%gnc(n) 
+                     gtmplat(r) = LIS_domain(n)%glat(gindex)
+                   enddo
+                enddo
+             
+                iret = nf90_put_var(ftn,varid,gtmplat,(/1/),&
+                     (/LIS_rc%gnr(n)/))
+                deallocate(gtmplat) 
+
+             elseif(nmodel_status.eq.2) then !lon
+                allocate(gtmplon(LIS_rc%gnc(n)))
+                gtmplon = LIS_rc%udef
+
+                do r=1,LIS_rc%gnr(n)
+                   do c=1,LIS_rc%gnc(n)
+                      gindex = c+(r-1)*LIS_rc%gnc(n)
+                      gtmplon(c) = LIS_domain(n)%glon(gindex)
+                   enddo
+                enddo             
+             
+                iret = nf90_put_var(ftn,varid,gtmplon,(/1/),&
+                     (/LIS_rc%gnc(n)/))
+                deallocate(gtmplon)
+
+             else
+                if(PRESENT(dim1)) then 
+                   iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
+                        (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
+                else            
+                   iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
+                        (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
+                endif
+             endif
+
+          ! The latlon fields are written to 2D
+          else 
+             if(PRESENT(dim1)) then
+                iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
+                   (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
+             else
+                iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
+                   (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
+             endif
+          endif
+
+
           if(ftn_stats.ne.-1) then
              if ( LIS_rc%sout ) then
                 call stats(gtmp,LIS_rc%udef,LIS_rc%gnc(n)*LIS_rc%gnr(n),&
@@ -6097,7 +6811,7 @@ contains
     elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
 
        ! Non-model output field status (T=non-model; F=model-based):
-       if(nmodel_status) then   ! non-model output field status
+       if(nmodel_status.ne.0) then   ! non-model output field status
           allocate(var1(LIS_rc%ngrid(n)))
           if(LIS_masterproc) then 
              allocate(gtmp(LIS_rc%gnc(n),LIS_rc%gnr(n)))
@@ -6152,13 +6866,60 @@ contains
                    enddo
                 enddo
              enddo
-             if(PRESENT(dim1)) then 
-                iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
-                     (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
-             else            
-                iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
-                     (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
+
+             ! The lat/lon fields are written to 1D
+             if(LIS_rc%nlatlon_dimensions == '1D') then             
+                if(nmodel_status.eq.1) then   ! lat
+                   allocate(gtmplat(LIS_rc%gnr(n)))
+                   gtmplat = LIS_rc%udef
+                
+                   do r=1,LIS_rc%gnr(n)
+                      do c=1,LIS_rc%gnc(n)
+                         gindex = c+(r-1)*LIS_rc%gnc(n)
+                         gtmplat(r) = LIS_domain(n)%glat(gindex)
+                      enddo
+                   enddo
+                
+                   iret = nf90_put_var(ftn,varid,gtmplat,(/1/),&
+                        (/LIS_rc%gnr(n)/))
+                   deallocate(gtmplat)
+                
+                elseif(nmodel_status.eq.2) then !lon
+                   allocate(gtmplon(LIS_rc%gnc(n)))
+                   gtmplon = LIS_rc%udef
+                
+                   do r=1,LIS_rc%gnr(n)
+                      do c=1,LIS_rc%gnc(n)
+                         gindex = c+(r-1)*LIS_rc%gnc(n)
+                         gtmplon(c) = LIS_domain(n)%glon(gindex)
+                      enddo
+                   enddo
+                
+                   iret = nf90_put_var(ftn,varid,gtmplon,(/1/),&
+                        (/LIS_rc%gnc(n)/))
+                   deallocate(gtmplon) 
+
+                else             
+                   if(PRESENT(dim1)) then 
+                      iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
+                           (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
+                   else            
+                      iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
+                           (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
+                   endif
+                endif
+
+             ! The latlon fields are written to 2D
+             else 
+                if(PRESENT(dim1)) then
+                   iret = nf90_put_var(ftn,varid,gtmp,(/1,1,dim1/),&
+                        (/LIS_rc%gnc(n),LIS_rc%gnr(n),1/))
+                else
+                   iret = nf90_put_var(ftn,varid,gtmp,(/1,1/),&
+                        (/LIS_rc%gnc(n),LIS_rc%gnr(n)/))
+                endif
              endif
+             
              if(ftn_stats.ne.-1) then
                 if ( LIS_rc%sout ) then
                    call stats(gtmp,LIS_rc%udef,LIS_rc%gnc(n)*LIS_rc%gnr(n),&
@@ -6301,7 +7062,7 @@ contains
     real, intent(in)    :: var(LIS_rc%nroutinggrid(n)*LIS_rc%nensem(n))
     character (len=*)   :: mvar
     integer, intent(in) :: form
-    logical, intent(in) :: nmodel_status
+    integer, intent(in) :: nmodel_status
     integer, intent(in), optional :: dim1
 !
 ! !DESCRIPTION:
@@ -6431,7 +7192,7 @@ contains
     elseif(LIS_rc%wopt.eq."2d ensemble gridspace") then 
 
        ! Non-model output field status (T=non-model; F=model-based):
-       if(nmodel_status) then   ! non-model output field status
+       if(nmodel_status.ne.0) then   ! non-model output field status
           allocate(var1(LIS_rc%nroutinggrid(n)))
           if(LIS_masterproc) then 
              allocate(gtmp(LIS_rc%gnc(n),LIS_rc%gnr(n)))

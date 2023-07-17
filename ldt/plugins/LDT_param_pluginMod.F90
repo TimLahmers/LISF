@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -24,7 +24,8 @@ module LDT_param_pluginMod
 !  11 Feb 2013:  KR Arsenault - Updated to accommodate new parameter types and options
 !  01 Mar 2020:  Yeosang Yoon - Added MERIT DEM
 !  29 Jun 2020:  Mahdi Navari - Glacier fraction added 
-!  
+!  12 Apr 2021:  Wanshu Nie   - groundwater irrigation ratio added
+!  28 Jun 2022:  Eric Kemp    - Added NAFPA background precipitation
 !EOP
 
   use LDT_pluginIndices
@@ -76,8 +77,13 @@ contains
     use Mosaic_parmsMod
     use RUC_parmsMod
     use JULES50_parmsMod
-    use Crocus_parmsMod    
+    use Crocus_parmsMod
+    use SnowModel_parmsMod
 
+    external :: registerlsmparamprocinit
+    external :: registerlsmparamprocwriteheader
+    external :: registerlsmparamprocwritedata
+    
   ! Noah 2.7.1 LSM:
     call registerlsmparamprocinit(trim(LDT_noah271Id)//char(0),&
          NoahParms_init)
@@ -239,13 +245,21 @@ contains
     call registerlsmparamprocwritedata(trim(LDT_jules50Id)//char(0),&
          JULES50Parms_writeData)
 
- !Crocus 8.1 :
+  ! Crocus 8.1 :
     call registerlsmparamprocinit(trim(LDT_Crocus81Id)//char(0),&
         CrocusParms_init)
     call registerlsmparamprocwriteheader(trim(LDT_Crocus81Id)//char(0),&
          CrocusParms_writeHeader)
     call registerlsmparamprocwritedata(trim(LDT_Crocus81Id)//char(0),&
          CrocusParms_writeData)
+
+  ! SnowModel LSM:
+    call registerlsmparamprocinit(trim(LDT_snowmodelId)//char(0),&
+         SnowModelParms_init)
+    call registerlsmparamprocwriteheader(trim(LDT_snowmodelId)//char(0),&
+         SnowModelParms_writeHeader)
+    call registerlsmparamprocwritedata(trim(LDT_snowmodelId)//char(0),&
+         SnowModelParms_writeData)
 
   end subroutine LDT_LSMparam_plugin
 
@@ -369,6 +383,7 @@ contains
 
     external set_MODISNative_lc_attribs
     external read_MODISNative_lc
+    external read_MCD12Q1_lc
     external read_MODISNative_PFT
     external read_UKMO_IGBP_PFT
     external read_UM_ancillary
@@ -382,6 +397,8 @@ contains
     external read_CONSTANT_lc
     external read_SACHTET356_lc
     external read_CLM45_lc
+    external read_NALCMS_SM_lc
+    external read_NALCMS_SM_IGBPNCEP_lc
 
     external read_regmask_gis
     external read_regmask_wrsi
@@ -416,6 +433,7 @@ contains
 
   ! MODIS-IGBP/NCEP (LIS-based):
     call registerreadlc(trim(LDT_modislcLISId)//char(0), read_MODIS_lc)
+    call registerreadlc(trim(LDT_mcd12q1Id)//char(0), read_MCD12Q1_lc)
 
   ! USGS (Native):
     call registerreadlc(trim(LDT_usgslcNATId)//char(0), read_USGSNative_lc)
@@ -436,6 +454,11 @@ contains
     call registerreadlc(trim(LDT_sachtet356Id)//char(0), read_SACHTET356_lc)
   ! CLM-4.5 Landcover:
     call registerreadlc(trim(LDT_clm45lcId)//char(0), read_CLM45_lc)
+
+  ! SnowModel-based NALCMS Landcover:
+    call registerreadlc(trim(LDT_nalcmsSMlcId)//char(0), read_NALCMS_SM_lc)
+  ! NALCMS/SnowModel-mapped to IGBP/NCEP Landcover:
+    call registerreadlc(trim(LDT_nalcmsSMIGBPlcId)//char(0), read_NALCMS_SM_IGBPNCEP_lc)
 
   ! Constant Landcover:
     call registerreadlc(trim(LDT_constId)//char(0), read_CONSTANT_lc)
@@ -546,6 +569,11 @@ contains
     external read_MERIT1K_slope
     external read_MERIT1K_aspect
 
+    external read_NED_SM_elev
+    external read_NED_SM_slope
+    external read_NED_SM_aspect
+    external read_NED_SM_curvature
+
  !- GTOPO30:
     call registerreadelev(trim(LDT_gtopoLISId)//char(0),read_GTOPO30_elev)
     call registerreadelev(trim(LDT_gtopoGFSId)//char(0),read_GTOPO30_GFS_elev)
@@ -571,6 +599,12 @@ contains
     call registerreadelev(trim(LDT_merit1KId)//char(0),read_MERIT1K_elev)
     call registerreadslope(trim(LDT_merit1KId)//char(0),read_MERIT1K_slope)
     call registerreadaspect(trim(LDT_merit1KId)//char(0),read_MERIT1K_aspect)
+
+!- NED (SnowModel file version) elevation:
+    call registerreadelev(trim(LDT_nedSMId)//char(0),read_NED_SM_elev)
+    call registerreadslope(trim(LDT_nedSMId)//char(0),read_NED_SM_slope)
+    call registerreadaspect(trim(LDT_nedSMId)//char(0),read_NED_SM_aspect)
+    call registerreadcurv(trim(LDT_nedSMId)//char(0),read_NED_SM_curvature)
 
   end subroutine LDT_topo_plugin
 
@@ -935,8 +969,9 @@ contains
 
     external read_GRIPC_irrigtype
     external read_GRIPC_irrigfrac
-
     external read_UserDerived_irrigfrac
+
+    external read_USGSNative_irriggwratio
 
     call registerreadirrigfrac(trim(LDT_modOGirrigId)//char(0),&
          read_OzdoganGutman_irrigfrac)
@@ -946,6 +981,8 @@ contains
 
     ! Added user-derived irrigation fraction input option:
     call registerreadirrigfrac(trim(LDT_userinputirrigId)//char(0),read_UserDerived_irrigfrac)
+    ! Added irrigation groundwater ratio input option
+    call registerreadirriggwratio(trim(LDT_irriggwratioId)//char(0),read_USGSNative_irriggwratio)
 
   end subroutine LDT_irrigation_plugin
 
@@ -1175,9 +1212,13 @@ contains
 ! !INTERFACE:
   subroutine LDT_climate_plugin
 !EOP
+    use LDT_NAFPA_back_climpptMod, only: LDT_read_NAFPA_back_gfs_climppt, &
+         LDT_read_NAFPA_back_galwem_climppt
     external read_PRISM_climppt
     external read_WorldClim_climppt
     external read_NLDAS_climppt
+
+    external :: registerreadclimppt
 
 ! !USES:
 !- Precipitation downscaling:
@@ -1186,6 +1227,12 @@ contains
 
     call registerreadclimppt(trim(LDT_worldclimpptId)//char(0),&
          read_WorldClim_climppt)
+
+    call registerreadclimppt(trim(LDT_nafpabackgfspptId)//char(0),&
+         LDT_read_NAFPA_back_gfs_climppt)
+
+    call registerreadclimppt(trim(LDT_nafpabackgalwempptId)//char(0),&
+         LDT_read_NAFPA_back_galwem_climppt)
 
 !- Temperature downscaling:
 

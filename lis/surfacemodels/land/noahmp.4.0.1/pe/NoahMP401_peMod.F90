@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -22,6 +22,7 @@ module NoahMP401_peMod
 ! !USES:        
   use ESMF
   use LIS_numerRecipesMod, only : LIS_rand_func
+  use LIS_constantsMod, only : LIS_CONST_PATH_LEN
 
   implicit none
 
@@ -65,7 +66,7 @@ contains
 
     implicit none
 ! !ARGUMENTS: 
-    character*100               :: decSpaceAttribsFile
+    character(len=LIS_CONST_PATH_LEN) :: decSpaceAttribsFile
     type(ESMF_State)            :: DEC_State
     type(ESMF_State)            :: Feas_State
 
@@ -389,6 +390,30 @@ contains
           if(vname.eq."SNDECAYEXP")      then 
              do t=1,NT 
                 vardata(t) = NoahMP401_struc(n)%noahmp401(t)%param%sndecayexp
+             enddo
+          endif
+
+          if(vname.eq."T_ULIMIT") then 
+             do t=1,NT 
+                vardata(t) = NoahMP401_struc(n)%noahmp401(t)%param%t_ulimit
+             enddo
+          endif
+
+          if(vname.eq."T_LLIMIT") then 
+             do t=1,NT 
+                vardata(t) = NoahMP401_struc(n)%noahmp401(t)%param%t_llimit
+             enddo
+          endif
+
+          if(vname.eq."T_MLIMIT") then 
+             do t=1,NT 
+                vardata(t) = NoahMP401_struc(n)%noahmp401(t)%param%t_mlimit
+             enddo
+          endif
+          
+          if(vname.eq."SNOWF_SCALEF") then 
+             do t=1,NT 
+                vardata(t) = NoahMP401_struc(n)%noahmp401(t)%param%snowf_scalef
              enddo
           endif
 

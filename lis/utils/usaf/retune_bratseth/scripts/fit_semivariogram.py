@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+
+#-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
+# NASA Goddard Space Flight Center
+# Land Information System Framework (LISF)
+# Version 7.4
+#
+# Copyright (c) 2022 United States Government as represented by the
+# Administrator of the National Aeronautics and Space Administration.
+# All Rights Reserved.
+#-------------------------END NOTICE -- DO NOT EDIT-----------------------
+
 """
 SCRIPT: fit_semivariogram.py
 
@@ -10,6 +21,7 @@ REVISION HISTORY:
 26 Oct 2020: Eric Kemp. Initial Specification.
 03 Nov 2020: Eric Kemp. Removed plotting.  Fitted parameters are now saved
                to file.
+13 Dec 2021: Eric Kemp. Changed first guess for covariance settings.
 """
 
 # Standard library
@@ -25,7 +37,7 @@ import semivar
 #------------------------------------------------------------------------------
 def usage():
     """Print usage statement to standard out"""
-    print("Usage: %s CONFIGFILE PARAMFILE" %(sys.argv[0]))
+    print(f"Usage: {sys.argv[0]} CONFIGFILE PARAMFILE")
     print("  CONFIGFILE is config file for this script")
     print("  PARAMFILE is output file storing best-fit parameters")
 
@@ -37,12 +49,12 @@ if len(sys.argv) != 3:
     sys.exit(1)
 
 # Read config file
-cfgfile = sys.argv[1]
-if not os.path.exists(cfgfile):
-    print("[ERR] Config file %s does not exist!" %(cfgfile))
+CFGFILE = sys.argv[1]
+if not os.path.exists(CFGFILE):
+    print(f"[ERR] Config file {CFGFILE} does not exist!")
     sys.exit(1)
 config = configparser.ConfigParser()
-config.read(cfgfile)
+config.read(CFGFILE)
 
 vario_filename, max_distance = semivar.read_input_section_cfg(config)
 function_type = semivar.read_fit_section_cfg(config)
@@ -56,8 +68,8 @@ distvector, variovector, samplesize = \
 
 # Fit function
 # Comparing gages to background field.  Three parameters must be fit.
-sigma2_gage_guess = np.amin(variovector)
-sigma2_back_guess = np.amax(variovector) - sigma2_gage_guess
+sigma2_gage_guess = (np.amin(variovector) + np.amax(variovector)) / 2.
+sigma2_back_guess = sigma2_gage_guess
 L_back_guess = distvector[2]
 fit_func = semivar.fit_func_dict[function_type]
 sigma2_gage_min = 0.1*sigma2_gage_guess
@@ -82,9 +94,7 @@ sigma2_back = popt[1]
 L_back      = popt[2]
 
 # Write this to the param file
-fd = open(paramfile, "w")
-fd.write("SIGMA2_obs: %s\n" %(sigma2_gage))
-fd.write("SIGMA2_back: %s\n" %(sigma2_back))
-fd.write("L_back: %s\n" %(L_back))
-fd.close()
-
+with open(paramfile, "w", encoding="ascii") as fd:
+    fd.write(f"SIGMA2_obs: {sigma2_gage}\n")
+    fd.write(f"SIGMA2_back: {sigma2_back}\n")
+    fd.write(f"L_back: {L_back}\n")

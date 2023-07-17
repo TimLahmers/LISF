@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -13,7 +13,7 @@
 !
 ! !REVISION HISTORY:
 ! 14 Mar 2017: Sujay Kumar; Initial Specification
-! 29 May 2020: Bailing Li; created for Noah-MP4.0.1 
+! 29 May 2020: Bailing Li; created for Noah-MP4.0.1
 !
 ! !INTERFACE:
 subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
@@ -24,16 +24,16 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
   use noahmp401_lsmMod
 
   implicit none
-! !ARGUMENTS: 
+! !ARGUMENTS:
   integer, intent(in)    :: n
   type(ESMF_State)       :: LSM_State
   type(ESMF_State)       :: LSM_Incr_State
 !
 ! !DESCRIPTION:
-!  
+!
 !  This routine assigns the soil moisture prognostic variables to noah's
-!  model space. 
-! 
+!  model space.
+!
 !EOP
 
   type(ESMF_Field)       :: sm1Field
@@ -51,7 +51,7 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
   type(ESMF_Field)     :: gwField
   type(ESMF_Field)     :: gwIncrField
   real, pointer        :: gws(:)
-  real, pointer        :: gwsIncr(:)  
+  real, pointer        :: gwsIncr(:)
 
   real, pointer          :: soilm1(:)
   real, pointer          :: soilm2(:)
@@ -63,8 +63,15 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
   real, pointer          :: soilmIncr4(:)
   real, pointer          :: swe(:), sweincr(:)
   real, pointer          :: snod(:), snodincr(:)
-  integer                :: t,i,m
+  integer                :: t,i,m,gid
   integer                :: status
+  real                   :: swetmp, snodtmp,sndens
+  logical                :: update_flag(LIS_rc%ngrid(n))
+  real                   :: perc_violation(LIS_rc%ngrid(n))
+
+  real                   :: snodmean(LIS_rc%ngrid(n))
+  integer                :: nsnodmean(LIS_rc%ngrid(n))
+
 
   call ESMF_StateGet(LSM_State,"Soil Moisture Layer 1",sm1Field,rc=status)
   call LIS_verify(status,&
@@ -82,11 +89,10 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
   call ESMF_StateGet(LSM_State,"Groundwater Storage",gwField,rc=status)
   call LIS_verify(status,&
        "ESMF_StateSet: Groundwater Storage failed in noahmp401_updatetws")
- 
+
   call ESMF_StateGet(LSM_State,"SWE",sweField,rc=status)
   call LIS_verify(status)
-  call ESMF_StateGet(LSM_State,"Snowdepth",snodField,rc=status)
-  call LIS_verify(status)
+
 
 
   call ESMF_StateGet(LSM_Incr_State,"Soil Moisture Layer 1",sm1IncrField,rc=status)
@@ -106,8 +112,6 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
   call LIS_verify(status,&
        "ESMF_StateSet: Groundwater Storage failed in noahmp401_updatetws")
   call ESMF_StateGet(LSM_Incr_State,"SWE",sweIncrField,rc=status)
-  call LIS_verify(status)
-  call ESMF_StateGet(LSM_Incr_State,"Snowdepth",snodIncrField,rc=status)
   call LIS_verify(status)
 
 
@@ -129,8 +133,7 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
        "ESMF_FieldGet: Groundwater Storage failed in noahmp401_updatetws")
   call ESMF_FieldGet(sweField,localDE=0,farrayPtr=swe,rc=status)
   call LIS_verify(status)
-  call ESMF_FieldGet(snodField,localDE=0,farrayPtr=snod,rc=status)
-  call LIS_verify(status)
+
 
 
   call ESMF_FieldGet(sm1IncrField,localDE=0,farrayPtr=soilmIncr1,rc=status)
@@ -150,18 +153,14 @@ subroutine noahmp401_updatetws(n, LSM_State, LSM_Incr_State)
        "ESMF_StateSet: Groundwater Storage failed in noahmp401_updatetws")
   call ESMF_FieldGet(sweIncrField,localDE=0,farrayPtr=sweincr,rc=status)
   call LIS_verify(status)
-  call ESMF_FieldGet(snodIncrField,localDE=0,farrayPtr=snodincr,rc=status)
-  call LIS_verify(status)
 
 
   do t=1,LIS_rc%npatch(n,LIS_rc%lsm_index)
-
      soilm1(t) = soilm1(t) + soilmIncr1(t)
      soilm2(t) = soilm2(t) + soilmIncr2(t)
      soilm3(t) = soilm3(t) + soilmIncr3(t)
      soilm4(t) = soilm4(t) + soilmIncr4(t)
      gws(t)    = gws(t)    + gwsIncr(t)
-     swe(t) = swe(t) + sweincr(t)
-     snod(t) = snod(t) + snodincr(t)
+     swe(t) = swe(t)  + sweIncr(t)
   enddo
 end subroutine noahmp401_updatetws

@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -19,7 +19,9 @@
 !                not work with optimization level -1 and -2
 !  21 Feb. 2021: Mahdi Navari, code modified to write the DGG 
 !                lookup table into a netCDF file
-!
+!  3  Apr. 2023: Mahdi Navari, Bugfix: issue in grid finding 
+!                period (Issue #1301)
+! 
 ! !INTERFACE:
 subroutine readSMOSNRTNNL2smObs(n)
 ! !USES:
@@ -30,6 +32,7 @@ subroutine readSMOSNRTNNL2smObs(n)
    use ESMF
    use LDT_coreMod
    use LDT_logMod
+   use LDT_constantsMod, only : LDT_CONST_PATH_LEN
    use LDT_timeMgrMod
    use LDT_DAobsDataMod
    use SMOSNRTNNL2sm_obsMod
@@ -50,8 +53,8 @@ subroutine readSMOSNRTNNL2smObs(n)
    logical            :: alarmCheck
    logical            :: file_exists
    integer            :: c, r, i, j
-   character*200      :: fname
-   character(len=256) :: nc_filename
+   character(len=LDT_CONST_PATH_LEN)      :: fname
+   character(len=LDT_CONST_PATH_LEN) :: nc_filename
    integer            :: mn_ind
    integer            :: yr, mo, da, hr, mn, ss
    integer            :: doy
@@ -64,7 +67,7 @@ subroutine readSMOSNRTNNL2smObs(n)
    character*4        :: yyyy
    character*2        :: mm, dd, hh
    character*100      :: list_files
-   character*200      :: smos_filename(10)
+   character(len=LDT_CONST_PATH_LEN)      :: smos_filename(10)
    real               :: smobs(LDT_rc%lnc(n)*LDT_rc%lnr(n))
    integer            :: lat_varid, lon_varid, sm_varid, dim_ids(2)
 
@@ -278,11 +281,12 @@ subroutine read_SMOSNRTL2sm_data(n, fname, smobs_inp)
                    lat2d(c,r)-dy/2 <= max_lat_dgg) then
 
 
-                  if (SMOSNRTNNsmobs(n)%count_day <= 30) then
-                     ! assume that during 30 days after the simulation start date
+                  if (SMOSNRTNNsmobs(n)%count_day <= 150) then
+                     ! assume that during 150 days after the simulation start date
                      ! all land grids have assigned dgg_id_number
                      ! in order to avoid looping over ocean grids for every files
-
+                     ! originally count_day was set to 30 days, but it seems that this 
+                     ! period was not enough to assign all SMOS grids to the LIS grids.  
                      if (.not. SMOSNRTNNsmobs(n)%SMOS_lookup(c,r)%dgg_assign) then 
                         call find_SMOS_Dgg_id_number(n,c,r, lon_dgg, lat_dgg, &
                                                      dgg_length, i_dgg, DGG_id_number, &
@@ -380,9 +384,10 @@ subroutine read_SMOSNRTL2sm_data(n, fname, smobs_inp)
    call LDT_verify(ios,'Error closing file '//trim(fname))
 
 
-  ! assume that during 30 days after the simulation start date
+  ! assume that during 150 days after the simulation start date
   ! all land grids have assigned dgg_id_number
-   if (SMOSNRTNNsmobs(n)%count_day .eq. 31) then
+
+   if (SMOSNRTNNsmobs(n)%count_day .eq. 151) then
 
      total_length = 0
        do r = 1, LDT_rc%lnr(n)

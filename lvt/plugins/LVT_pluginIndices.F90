@@ -1,9 +1,9 @@
 !-----------------------BEGIN NOTICE -- DO NOT EDIT-----------------------
 ! NASA Goddard Space Flight Center
 ! Land Information System Framework (LISF)
-! Version 7.3
+! Version 7.4
 !
-! Copyright (c) 2020 United States Government as represented by the
+! Copyright (c) 2022 United States Government as represented by the
 ! Administrator of the National Aeronautics and Space Administration.
 ! All Rights Reserved.
 !-------------------------END NOTICE -- DO NOT EDIT-----------------------
@@ -40,6 +40,7 @@
 !  17 Oct 2018  Mahdi Navari  Enhanced the LVT reader to read the 
 !               Veg. Water Content (VWC) from SMAP SM dataset ! 
 !  19 Nov 2018  Mahdi Navari added suport to read SMAP_L3 brightness temperature
+!  10 Jan 2023  Mahdi Navari added suport for COAMPSout 
 !
 !EOP
 module LVT_pluginIndices
@@ -144,6 +145,7 @@ module LVT_pluginIndices
    character*50, public,  parameter :: LVT_rtmrunId  = "RTM output processing"
    character*50, public,  parameter :: LVT_557postId = "557 post"
    character*50, public,  parameter :: LVT_usafsipostId = "USAFSI post"
+   character*50, public,  parameter :: LVT_LISpostId = "LIS postprocessing"
 
 !-------------------------------------------------------------------------
 ! Domains
@@ -263,10 +265,14 @@ module LVT_pluginIndices
    character*50, public,  parameter :: LVT_UASNOWdataId = "UA SNOW"
    character*50, public,  parameter :: LVT_ozFluxdataId = "OzFlux"
    character*50, public,  parameter :: LVT_JASMINsmobsId = "JASMIN soil moisture"
+   character*50, public,  parameter :: LVT_MCD15A2HobsId = "MCD15A2H LAI"
    character*50, public,  parameter :: LVT_ERA5obsId      = "ERA5"
    character*50, public,  parameter :: LVT_FluxSatobsId = "FluxSAT GPP"
    character*50, public,  parameter :: LVT_THySMobsId = "THySM"
    character*50, public,  parameter :: LVT_UASMAPobsId = "UA SMAP"
+   character*50, public,  parameter :: LVT_GRUNobsId = "GRUN runoff"
+   character*50, public,  parameter :: LVT_COAMPSoutId = "COAMPSout"
+   character*50, public,  parameter :: LVT_SMAP_E_OPLId = "OPL E SMAP soil moisture retrieval"  
 !-------------------------------------------------------------------------
 ! Training algorithms
 !------------------------------------------------------------------------- 
