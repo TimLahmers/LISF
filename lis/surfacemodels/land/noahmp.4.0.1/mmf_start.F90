@@ -22,7 +22,8 @@ subroutine mmf_start(n)
     integer, allocatable, dimension(:,:) :: gisltyp, givgtyp
     real, allocatable, dimension(:,:) :: gfdepth, gtopo , garea, grechclim, grivercond, &
                                          gwtd, griverbed, geqwtd, gpexp, gsmcwtdxy, &
-                                         gdeeprechxy, grechxy, gqslatxy, gqrfsxy, gqspringsxy
+                                         gdeeprechxy, grechxy, gqslatxy, gqrfsxy, gqspringsxy, &
+                                         gcwidth, gclength
     real, allocatable,dimension(:,:,:) :: gsmois, gsh2o, gsmoiseq
 #endif
     wtddt = int(LIS_rc%ts/60) ! in minutes? 
@@ -114,6 +115,8 @@ subroutine mmf_start(n)
         allocate(gsmcwtdxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(gdeeprechxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(grechxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
+        allocate(gcwidth(LIS_rc%gnc(n), LIS_rc%gnr(n)))
+        allocate(gclength(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(gqslatxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(gqrfsxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(gqspringsxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
@@ -136,6 +139,8 @@ subroutine mmf_start(n)
         allocate(gsmcwtdxy(1,1))
         allocate(gdeeprechxy(1,1))
         allocate(grechxy(1,1))
+        allocate(gcwidth(1,1))
+        allocate(gclength(1,1))
         allocate(gqslatxy(1,1))
         allocate(gqrfsxy(1,1))
         allocate(gqspringsxy(1,1))
@@ -164,6 +169,8 @@ subroutine mmf_start(n)
     call LIS_gather_masterproc_2d_local_to_global(n, smcwtdxy, gsmcwtdxy)
     call LIS_gather_masterproc_2d_local_to_global(n, deeprechxy, gdeeprechxy)
     call LIS_gather_masterproc_2d_local_to_global(n, rechxy, grechxy)
+    call LIS_gather_masterproc_2d_local_to_global(n, cwidth, gcwidth)
+    call LIS_gather_masterproc_2d_local_to_global(n, clength, gclength)
     call LIS_gather_masterproc_2d_local_to_global(n, qslatxy, gqslatxy)
     call LIS_gather_masterproc_2d_local_to_global(n, qrfsxy, gqrfsxy)
     call LIS_gather_masterproc_2d_local_to_global(n, qspringsxy, gqspringsxy)
@@ -210,11 +217,10 @@ subroutine mmf_start(n)
 
     call  groundwater_init (noahmp401_struc(n)%nsoil,  & !nsoil ,
                             noahmp401_struc(n)%sldpth, & !dzs,
-                            gisltyp, givgtyp, wtddt ,    &
-                            gfdepth, gtopo, griverbed, geqwtd, grivercond, gpexp , garea ,gwtd , &
-                            gsmois,gsh2o, gsmoiseq, gsmcwtdxy, gdeeprechxy, grechxy ,  &
-                            gqslatxy, gqrfsxy, gqspringsxy,                  &
-                            grechclim  ,                                   &
+                            chanopt, gisltyp, givgtyp, wtddt ,    &
+                            gfdepth, gtopo, griverbed, geqwtd, grivercond, gcwidth, gclength, &
+                            gpexp, garea, gwtd, gsmois, gsh2o, gsmoiseq, gsmcwtdxy, &
+                            gdeeprechxy, grechxy, gqslatxy, gqrfsxy, gqspringsxy, grechclim, &
                             1,             & !ids,
                             LIS_rc%gnc(n), & !ide, +1 for test
                             1,             & !jds,
