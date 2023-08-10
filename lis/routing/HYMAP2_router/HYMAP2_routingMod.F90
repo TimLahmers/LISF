@@ -179,6 +179,7 @@ module HYMAP2_routingMod
 
 ! === 2-way coupling variables/parameters ===
   real,   allocatable  :: rivstotmp(:,:)     !River Storage [m3]
+  real,   allocatable  :: rivdphtmp(:,:)     !River Storage [m3]
   real,   allocatable  :: fldstotmp(:,:)     !Flood Storage [m3]
   real,   allocatable  :: fldfrctmp(:,:)     !Flooded Fraction [m3]
   integer                   :: enable2waycpl
@@ -304,9 +305,11 @@ contains
 
     !ag (12Sep2019)
     type(ESMF_Field)     :: rivsto_field
+    type(ESMF_Field)     :: rivdph_field
     type(ESMF_Field)     :: fldsto_field
     type(ESMF_Field)     :: fldfrc_field
     real, pointer        :: rivstotmp(:)
+    real, pointer        :: rivdphtmp(:)
     real, pointer        :: fldstotmp(:)
     real, pointer        :: fldfrctmp(:)
 
@@ -857,6 +860,8 @@ contains
           !ag (12Sep2019)
           allocate(HYMAP2_routing_struc(n)%rivstotmp(HYMAP2_routing_struc(n)%nseqall,&
                1))
+          allocate(HYMAP2_routing_struc(n)%rivdphtmp(HYMAP2_routing_struc(n)%nseqall,&
+               1))      
           allocate(HYMAP2_routing_struc(n)%fldstotmp(HYMAP2_routing_struc(n)%nseqall,&
                1))
           allocate(HYMAP2_routing_struc(n)%fldfrctmp(HYMAP2_routing_struc(n)%nseqall,&
@@ -925,6 +930,8 @@ contains
 
           !ag (12Sep2019)
           allocate(HYMAP2_routing_struc(n)%rivstotmp(HYMAP2_routing_struc(n)%nseqall,&
+               LIS_rc%nensem(n)))
+          allocate(HYMAP2_routing_struc(n)%rivdphtmp(HYMAP2_routing_struc(n)%nseqall,&
                LIS_rc%nensem(n)))
           allocate(HYMAP2_routing_struc(n)%fldstotmp(HYMAP2_routing_struc(n)%nseqall,&
                LIS_rc%nensem(n)))
@@ -1693,6 +1700,23 @@ contains
            call LIS_verify(status)
 
            call ESMF_stateAdd(LIS_runoff_state(n),(/rivsto_field/),rc=status)
+           call LIS_verify(status, 'ESMF_StateAdd failed for River Storage')
+
+           ! River Depth
+           rivdph_field =ESMF_FieldCreate(arrayspec=realarrspec,&
+                grid=LIS_vecTile(n), name="River Depth",rc=status)
+           call LIS_verify(status, 'ESMF_FieldCreate failed')
+               
+           call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp,&
+                rc=status)
+           call LIS_verify(status)
+           rivdphtmp = 0.0
+          
+           call ESMF_AttributeSet(LIS_runoff_state(n),"2 way coupling",&
+                HYMAP2_routing_struc(n)%enable2waycpl, rc=status)
+           call LIS_verify(status)
+               
+           call ESMF_stateAdd(LIS_runoff_state(n),(/rivdph_field/),rc=status)
            call LIS_verify(status, 'ESMF_StateAdd failed for River Storage')
 
            ! Flood Storage

@@ -61,7 +61,8 @@ subroutine HYMAP2_routing_run(n)
   integer               :: m
   type(ESMF_Field)      :: sf_runoff_field
   type(ESMF_Field)      :: baseflow_field  
-  type(ESMF_Field)      :: rivsto_field  
+  type(ESMF_Field)      :: rivsto_field
+  type(ESMF_Field)      :: rivdph_field  
   type(ESMF_Field)      :: fldsto_field
   type(ESMF_Field)      :: fldfrc_field
   real,   pointer       :: surface_runoff_t(:)
@@ -111,6 +112,7 @@ subroutine HYMAP2_routing_run(n)
   real,   allocatable   :: ewat_lvec(:)
   real,   allocatable   :: edif_lvec(:)
   real,   pointer       :: rivstotmp_lvec(:)
+  real,   pointer       :: rivdphtmp_lvec(:)
   real,   pointer       :: fldstotmp_lvec(:)
   real,   pointer       :: fldfrctmp_lvec(:)
   real                  :: fldfrctmp1_lvec(LIS_rc%ntiles(n))
@@ -721,6 +723,30 @@ subroutine HYMAP2_routing_run(n)
                HYMAP2_routing_struc(n)%rivstotmp)
 
           call LIS_grid2tile(n,tmp_nensem(:,:,1),rivstotmp_lvec)
+
+          ! TML Add River Depth for 2-way coupling + MMF
+          ! Will need to add declarations and allocate local variables... 
+          ! River Depth
+          call ESMF_StateGet(LIS_runoff_state(n),"River Depth",rivdph_field, rc=status)
+          call LIS_verify(status, "HYMAP2_routing_run: ESMF_StateGet failed for River Storage")
+
+          call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp_lvec,rc=status)
+          call LIS_verify(status)
+
+          ! copy to tmp array; no conversion
+          do i=1,HYMAP2_routing_struc(n)%nseqall
+             HYMAP2_routing_struc(n)%rivdphtmp(i,:)=HYMAP2_routing_struc(n)%rivdph(i,:)
+          enddo
+
+          !HYMAP2_routing_struc(n)%rivdphtmp=HYMAP2_routing_struc(n)%rivdph
+
+          call HYMAP2_vector2grid(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+               HYMAP2_routing_struc(n)%nseqall,&
+               HYMAP2_routing_struc(n)%imis,HYMAP2_routing_struc(n)%seqx,&
+               HYMAP2_routing_struc(n)%seqy,tmp_nensem(:,:,1), &
+               HYMAP2_routing_struc(n)%rivdphtmp)
+
+          call LIS_grid2tile(n,tmp_nensem(:,:,1),rivdphtmp_lvec)
 
           ! Flood Storage
           call ESMF_StateGet(LIS_runoff_state(n),"Flood Storage",fldsto_field, rc=status)
