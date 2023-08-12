@@ -34,9 +34,11 @@ subroutine noahmp401_getsws_hymap2(n)
 !  
 !EOP
   type(ESMF_Field)       :: rivsto_field
+  type(ESMF_Field)       :: rivdph_field
   type(ESMF_Field)       :: fldsto_field
   type(ESMF_Field)       :: fldfrc_field
   real, pointer          :: rivstotmp(:)
+  real, pointer          :: rivdphtmp(:)
   real, pointer          :: fldstotmp(:)
   real, pointer          :: fldfrctmp(:)
   integer                :: t
@@ -57,6 +59,17 @@ subroutine noahmp401_getsws_hymap2(n)
      call LIS_verify(status,'ESMF_FieldGet failed for River Storage')
      where(rivstotmp/=LIS_rc%udef) &
           NOAHMP401_struc(n)%noahmp401(:)%rivsto=rivstotmp/NOAHMP401_struc(n)%ts
+
+     ! TML Add River Depth
+     ! note: these are Noah-MP variables, so need to add definitions for these
+     ! River Depth
+     call ESMF_StateGet(LIS_runoff_state(n),"River Depth",rivdph_field,rc=status)
+     call LIS_verify(status,'ESMF_StateGet failed for River Depth')
+
+     call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp,rc=status)
+     call LIS_verify(status,'ESMF_FieldGet failed for River Depth')
+     where(rivdphtmp/=LIS_rc%udef) &
+          NOAHMP401_struc(n)%noahmp401(:)%rivdph=rivdphtmp
 
      ! Flood Storage
      call ESMF_StateGet(LIS_runoff_state(n),"Flood Storage",fldsto_field,rc=status)

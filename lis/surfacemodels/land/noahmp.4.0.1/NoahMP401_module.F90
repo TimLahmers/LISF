@@ -459,6 +459,7 @@ module NoahMP401_module
         !ag (05Jan2021)
         ! 2-way coupling parameters
         real               :: rivsto
+        real               :: rivdph
         real               :: fldsto
         real               :: fldfrc
 
