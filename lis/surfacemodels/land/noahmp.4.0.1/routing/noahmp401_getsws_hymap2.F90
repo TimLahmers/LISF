@@ -50,6 +50,8 @@ subroutine noahmp401_getsws_hymap2(n)
        enable2waycpl, rc=status)
   call LIS_verify(status)
 
+  
+  write(LIS_logunit, *) "Noah-MP HyMAP 2-WayCoupling Setting: ", enable2waycpl
   if(enable2waycpl==1) then 
      ! River Storage
      call ESMF_StateGet(LIS_runoff_state(n),"River Storage",rivsto_field,rc=status)
@@ -59,17 +61,6 @@ subroutine noahmp401_getsws_hymap2(n)
      call LIS_verify(status,'ESMF_FieldGet failed for River Storage')
      where(rivstotmp/=LIS_rc%udef) &
           NOAHMP401_struc(n)%noahmp401(:)%rivsto=rivstotmp/NOAHMP401_struc(n)%ts
-
-     ! TML Add River Depth
-     ! note: these are Noah-MP variables, so need to add definitions for these
-     ! River Depth
-     call ESMF_StateGet(LIS_runoff_state(n),"River Depth",rivdph_field,rc=status)
-     call LIS_verify(status,'ESMF_StateGet failed for River Depth')
-
-     call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp,rc=status)
-     call LIS_verify(status,'ESMF_FieldGet failed for River Depth')
-     where(rivdphtmp/=LIS_rc%udef) &
-          NOAHMP401_struc(n)%noahmp401(:)%rivdph=rivdphtmp
 
      ! Flood Storage
      call ESMF_StateGet(LIS_runoff_state(n),"Flood Storage",fldsto_field,rc=status)
@@ -87,5 +78,37 @@ subroutine noahmp401_getsws_hymap2(n)
      call ESMF_FieldGet(fldfrc_field,localDE=0,farrayPtr=fldfrctmp,rc=status)
      call LIS_verify(status,'ESMF_FieldGet failed for Flooded Fraction')
      NOAHMP401_struc(n)%noahmp401(:)%fldfrc=fldfrctmp
+
+  elseif(enable2waycpl==3) then
+     ! River Storage
+     call ESMF_StateGet(LIS_runoff_state(n),"River Storage",rivsto_field,rc=status)
+     call LIS_verify(status,'ESMF_StateGet failed for River Storage')
+
+     call ESMF_FieldGet(rivsto_field,localDE=0,farrayPtr=rivstotmp,rc=status)
+     call LIS_verify(status,'ESMF_FieldGet failed for River Storage')
+     where(rivstotmp/=LIS_rc%udef) &
+          NOAHMP401_struc(n)%noahmp401(:)%rivsto=rivstotmp/NOAHMP401_struc(n)%ts
+
+     ! TML Add River Depth
+     ! note: these are Noah-MP variables, so need to add definitions for these
+     ! River Depth
+     call ESMF_StateGet(LIS_runoff_state(n),"River Depth",rivdph_field,rc=status)
+     call LIS_verify(status,'ESMF_StateGet failed for River Depth')
+
+     call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp,rc=status)
+     call LIS_verify(status,'ESMF_FieldGet failed for River Depth')
+     where(rivdphtmp/=LIS_rc%udef) &
+          NOAHMP401_struc(n)%noahmp401(:)%rivdph=rivdphtmp
+     write(LIS_logunit, *) "Maximum River Depth (m): ", maxval(NOAHMP401_struc(n)%noahmp401(:)%rivdph)
+
+     ! Flood Storage
+     call ESMF_StateGet(LIS_runoff_state(n),"Flood Storage",fldsto_field,rc=status)
+     call LIS_verify(status,'ESMF_StateGet failed for Flood Storage')
+
+     call ESMF_FieldGet(fldsto_field,localDE=0,farrayPtr=fldstotmp,rc=status)
+     call LIS_verify(status,'ESMF_FieldGet failed for Flood Storage')
+     where(fldstotmp/=LIS_rc%udef)&
+          NOAHMP401_struc(n)%noahmp401(:)%fldsto=fldstotmp/NOAHMP401_struc(n)%ts
+
   endif  
 end subroutine noahmp401_getsws_hymap2

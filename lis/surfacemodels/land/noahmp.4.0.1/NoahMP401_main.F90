@@ -253,6 +253,7 @@ subroutine NoahMP401_main(n)
 
         !ag (05Jan2021)
     real                 :: tmp_rivsto
+    real                 :: tmp_rivdph
     real                 :: tmp_fldsto
     real                 :: tmp_fldfrc
 
@@ -390,9 +391,15 @@ subroutine NoahMP401_main(n)
             ! NOAHMP401_struc(n)%noahmp401(t)%rivsto and NOAHMP401_struc(n)%noahmp401(t)%fldsto
             ! are updated in noahmp401_getsws_hymap2.F90
             tmp_rivsto = NOAHMP401_struc(n)%noahmp401(t)%rivsto
+            tmp_rivdph = NOAHMP401_struc(n)%noahmp401(t)%rivdph
             tmp_fldsto = NOAHMP401_struc(n)%noahmp401(t)%fldsto
             tmp_fldfrc = NOAHMP401_struc(n)%noahmp401(t)%fldfrc
 
+            !if ((t .ge. 25) .and. (t .le. 35)) then
+            !    write(LIS_logunit, *) "[INFO] sample rivdph values; index 25 - 35"
+            !    write(LIS_logunit, *) "for tile ", t, "River Depth: ",tmp_rivdph
+            !endif
+ 
             ! check validity of tair
             if(tmp_tair .eq. LIS_rc%udef) then
                 write(LIS_logunit, *) "[ERR] undefined value found for forcing variable tair in NoahMP401"
