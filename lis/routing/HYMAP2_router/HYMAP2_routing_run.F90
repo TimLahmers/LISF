@@ -699,7 +699,7 @@ subroutine HYMAP2_routing_run(n)
         endif
 
         !ag (12Sep2019)
-        if (HYMAP2_routing_struc(n)%enable2waycpl==1) then
+        if (HYMAP2_routing_struc(n)%enable2waycpl>0) then
            allocate(tmp_nensem(LIS_rc%lnc(n),LIS_rc%lnr(n),1))
           ! River Storage
           call ESMF_StateGet(LIS_runoff_state(n),"River Storage",rivsto_field, rc=status)

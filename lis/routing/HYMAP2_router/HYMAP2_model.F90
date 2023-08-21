@@ -183,9 +183,10 @@ subroutine HYMAP2_model(n,mis,nx,ny,yr,mo,da,hr,mn,ss,&
 #endif
 
   !ag(03Jun2020)
+  !TML: convert fluxes from Noah-MP into storage; use that storage in HyMAP, override HyMAP storage
   if(HYMAP2_routing_struc(n)%enable2waycpl==1)then
     do ic=1,nseqall
-      stommps=((rivsto(ic)+fldsto(ic))/grarea(ic))*1d3/dt !convert from m3 to mm/s
+      stommps=((rivsto(ic)+fldsto(ic))/grarea(ic))*1d3/dt !convert from m3 to mm/s [convert to fluxes]
       if(runoff0(ic)/=mis.and.basflw0(ic)/=mis.and.grarea(ic)/=mis)then
         if(LIS_rc%tscount(n) ==1)then
           runoff0(ic)=0. !stommps 

@@ -1684,7 +1684,8 @@ contains
             0, rc=status)
        call LIS_verify(status)
 
-       if (HYMAP2_routing_struc(n)%enable2waycpl==1) then
+       !if (HYMAP2_routing_struc(n)%enable2waycpl==1) then
+       if (HYMAP2_routing_struc(n)%enable2waycpl>0) then
            ! River Storage
            rivsto_field =ESMF_FieldCreate(arrayspec=realarrspec,&
                 grid=LIS_vecTile(n), name="River Storage",rc=status)
