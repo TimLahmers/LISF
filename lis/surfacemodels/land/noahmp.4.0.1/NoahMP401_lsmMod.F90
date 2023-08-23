@@ -210,6 +210,8 @@ module NoahMP401_lsmMod
         integer            :: pedo_opt
         integer            :: crop_opt
         integer            :: urban_opt
+        integer            :: root_opt
+        integer            :: soiltstep 
         integer            :: row_min, row_max, col_min, col_max ! SW, for MMF  
         real, pointer      :: smoiseq(:,:,:)
         real, pointer      :: smcwtd(:,:)     !MMF state

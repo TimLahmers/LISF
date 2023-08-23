@@ -112,6 +112,8 @@ subroutine NoahMP401_main(n)
     integer              :: tmp_crop_opt           ! crop model option (0->none; 1->Liu et al.; 2->Gecros) [-]
     integer              :: tmp_iz0tlnd            ! option of Chen adjustment of Czil (not used) [-]
     integer              :: tmp_urban_opt          ! urban physics option [-]
+    integer              :: tmp_root_opt           ! dynamic rooting depth scheme (Fan et al. 2017) (1->off; 2->on)
+    integer              :: tmp_soiltstep          ! soil time step (s) control namelist option (default=0: same as main NoahMP timstep)
     real, allocatable    :: tmp_soilcomp(:)        ! soil sand and clay percentage [-]
     real                 :: tmp_soilcL1            ! soil texture in layer 1 [-]
     real                 :: tmp_soilcL2            ! soil texture in layer 2 [-]
@@ -184,6 +186,15 @@ subroutine NoahMP401_main(n)
     real                 :: tmp_grain              ! mass of grain XING [g/m2]
     real                 :: tmp_gdd                ! growing degree days XING (based on 10C) [-]
     integer              :: tmp_pgs                ! growing degree days XING [-]
+    real                 :: tmp_easy               ! Root scheme ease function [-] 
+    real                 :: tmp_rootactivity       ! Root activity function [-]
+    real                 :: tmp_inactive           ! Number of timesteps with inactive roots [-]
+    integer              :: tmp_kroot              ! Layer depth of root zone [-]
+    integer              :: tmp_kwtd               ! Layer depth of water table [-]
+    real                 :: tmp_psi                ! Soil matric potential [m]
+    integer              :: tmp_gwrd               ! Root water uptake depth [m]
+    real                 :: tmp_btrani             ! Beta factor for soil moisture stress [-]
+    real                 :: tmp_fdepth_col         ! E-Folding Depth for Single Column
     real, allocatable    :: tmp_gecros_state(:)    ! optional gecros crop [-]
     real                 :: tmp_t2mv               ! 2m temperature of vegetation part [K]
     real                 :: tmp_t2mb               ! 2m temperature of bare ground part [K]
@@ -299,7 +310,7 @@ subroutine NoahMP401_main(n)
                                 ims,ime, jms,jme, kms,kme,                    &
                                 its,ite, jts,jte, kts,kte 
     
-    integer :: tmp_row, tmp_col 
+    integer :: tmp_row, tmp_col, t_row, t_col, t_temp 
     ! local
     real                        ::  xice_threshold
     integer                     ::  isice
@@ -506,6 +517,8 @@ subroutine NoahMP401_main(n)
             tmp_crop_opt          = NOAHMP401_struc(n)%crop_opt
             tmp_iz0tlnd           = 0
             tmp_urban_opt         = NOAHMP401_struc(n)%urban_opt
+            tmp_root_opt          = NOAHMP401_struc(n)%root_opt
+            tmp_soiltstep         = NOAHMP401_struc(n)%soiltstep
 ! Multiply reference height by 2.0 because module_sf_noahmpdrv
 ! expects this variable to be in terms of a thickness of the
 ! atmospheric layers, and it later divides this value by 2.0.
@@ -631,6 +644,42 @@ subroutine NoahMP401_main(n)
             tmp_pgs             = NOAHMP401_struc(n)%noahmp401(t)%pgs
             tmp_sfcheadrt       = NoahMP401_struc(n)%noahmp401(t)%sfcheadrt
 
+! Get Root Zone Variables:
+            if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+              if(NOAHMP401_struc(n)%run_opt .eq. 5) then
+                min_row = noahmp401_struc(n)%row_min
+                max_row = noahmp401_struc(n)%row_max
+                min_col = noahmp401_struc(n)%col_min
+                max_col = noahmp401_struc(n)%col_max
+                t_row = -9999
+                t_col = -9999
+                do row = min_row, max_row
+                  do col = min_col, max_col
+                    t_temp = NOAHMP401_struc(n)%rct_idx(col,row)                
+                    if (t_temp .eq. t) then
+                      t_row = row - NOAHMP401_struc(n)%row_min + 1
+                      t_col = col - NOAHMP401_struc(n)%col_min + 1
+                      tmp_fdepth_col = NOAHMP401_struc(n)%fdepth(t_col, t_row) 
+                    endif
+                  enddo
+                enddo 
+                if (t_row .eq. -9999) then
+                  write(LIS_logunit,*)'[ERR] Root Zone FDEPTH not found; exit.'
+                  call LIS_endrun()
+                endif
+              else
+                write(LIS_logunit,*)'[ERR] UIUC Root Zone Requires Runoff Opt 5.'
+                call LIS_endrun()
+              endif
+              tmp_easy         = NOAHMP401_struc(n)%noahmp401(t)%easy
+              tmp_rootactivity = NOAHMP401_struc(n)%noahmp401(t)%rootactivity
+              tmp_inactive     = NOAHMP401_struc(n)%noahmp401(t)%inactive
+              tmp_kroot        = NOAHMP401_struc(n)%noahmp401(t)%kroot
+              tmp_kwtd         = NOAHMP401_struc(n)%noahmp401(t)%kwtd
+              tmp_psi          = NOAHMP401_struc(n)%noahmp401(t)%psi
+              tmp_gwrd         = NOAHMP401_struc(n)%noahmp401(t)%gwrd
+              tmp_btrani       = NOAHMP401_struc(n)%noahmp401(t)%btrani
+            endif
 ! Calculate water storages at start of timestep
             startsm = 0.0
             do i = 1,tmp_nsoil
@@ -686,6 +735,8 @@ subroutine NoahMP401_main(n)
                                    tmp_crop_opt          , & ! in    - crop model option (0->none; 1->Liu et al.; 2->Gecros) [-]
                                    tmp_iz0tlnd           , & ! in    - option of Chen adjustment of Czil (not used) [-]
                                    tmp_urban_opt         , & ! in    - urban physics option [-]
+                                   tmp_root_opt          , & ! in    - dynamic rooting depth scheme (Fan et al. 2017) (1->off; 2->on)
+                                   tmp_soiltstep         , & ! in    - soil time step (s) control namelist option (default=0: same as main NoahMP timstep)
                                    tmp_soilcomp          , & ! in    - soil sand and clay percentage [-]
                                    tmp_soilcL1           , & ! in    - soil texture in layer 1 [-]
                                    tmp_soilcL2           , & ! in    - soil texture in layer 2 [-]
@@ -760,6 +811,15 @@ subroutine NoahMP401_main(n)
                                    tmp_grain             , & ! inout - mass of grain XING [g/m2]
                                    tmp_gdd               , & ! inout - growing degree days XING (based on 10C) [-]
                                    tmp_pgs               , & ! inout - growing degree days XING [-]
+                                   tmp_easy              , & ! inout - Root scheme ease function [-] 
+                                   tmp_rootactivity      , & ! inout - Root activity function [-]
+                                   tmp_inactive          , & ! inout - Number of timesteps with inactive roots [-]
+                                   tmp_kroot             , & ! inout - Layer depth of root zone [-]
+                                   tmp_kwtd              , & ! inout - Layer depth of water table [-]
+                                   tmp_psi               , & ! inout - Soil matric potential [m]
+                                   tmp_gwrd              , & ! inout - Root water uptake depth [m]
+                                   tmp_btrani            , & ! inout - Beta factor for soil moisture stress [-]
+                                   tmp_fdepth_col        , & ! inout - E-Folding Depth for Single Column
                                    tmp_gecros_state      , & ! inout - optional gecros crop [-]
                                    tmp_t2mv              , & ! out   - 2m temperature of vegetation part [K]
                                    tmp_t2mb              , & ! out   - 2m temperature of bare ground part [K]
@@ -937,7 +997,17 @@ subroutine NoahMP401_main(n)
             noahmp401_struc(n)%noahmp401(t)%relsmc(:)  = tmp_relsmc(:)
             NOAHMP401_struc(n)%noahmp401(t)%infxs1rt  = tmp_infxs1rt(1,1)
             NOAHMP401_struc(n)%noahmp401(t)%soldrain1rt  = tmp_soldrain1rt(1,1)
-
+            if (NOAHMP401_struc(n)%root_opt .eq. 2) then
+              NOAHMP401_struc(n)%noahmp401(t)%easy         = tmp_easy
+              NOAHMP401_struc(n)%noahmp401(t)%rootactivity = tmp_rootactivity
+              NOAHMP401_struc(n)%noahmp401(t)%inactive     = tmp_inactive
+              NOAHMP401_struc(n)%noahmp401(t)%kroot        = tmp_kroot
+              NOAHMP401_struc(n)%noahmp401(t)%kwtd         = tmp_kwtd
+              NOAHMP401_struc(n)%noahmp401(t)%psi          = tmp_psi
+              NOAHMP401_struc(n)%noahmp401(t)%gwrd         = tmp_gwrd 
+              NOAHMP401_struc(n)%noahmp401(t)%btrani       = tmp_btrani 
+              ! tmp_fdepth_col not needed; constant
+            endif
             
             ! EMK Update RHMin for 557WW
             if (tmp_tair .lt. &

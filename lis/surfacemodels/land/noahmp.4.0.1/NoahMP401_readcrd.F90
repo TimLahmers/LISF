@@ -400,6 +400,40 @@ subroutine NoahMP401_readcrd()
                               NOAHMP401_struc(n)%urban_opt
     enddo
 
+    ! UIUC Root Zone Soil Moisture Scheme (on/off)
+    call ESMF_ConfigFindLabel(LIS_config, &
+         "Noah-MP.4.0.1 UIUC root zone scheme option:", rc = rc)
+    if(rc /= 0) then
+        write(LIS_logunit,33) "[WARN] root zone scheme not defined."
+        write(LIS_logunit,33) "[WARN] UIUC scheme disabled (option 1)."
+        do n=1, LIS_rc%nnest
+            NOAHMP401_struc(n)%root_opt = 1
+            write(LIS_logunit,33) "UIUC root zone scheme option: ",NOAHMP401_struc(n)%root_opt
+        enddo
+    else
+        do n=1, LIS_rc%nnest
+            call ESMF_ConfigGetAttribute(LIS_config, NOAHMP401_struc(n)%root_opt, rc=rc)
+            write(LIS_logunit,33) "UIUC root zone scheme option: ",NOAHMP401_struc(n)%root_opt
+        enddo
+    endif    
+
+    ! UIUC Root Zone Soil Timestep (default: 0)
+    call ESMF_ConfigFindLabel(LIS_config, &
+         "Noah-MP.4.0.1 UIUC root zone soil timestep:", rc = rc)
+    if(rc /= 0) then
+        write(LIS_logunit,33) "[WARN] root zone timestep not defined."
+        write(LIS_logunit,33) "[WARN] Using Noah-MP timestep (default)."
+        do n=1, LIS_rc%nnest
+            NOAHMP401_struc(n)%soiltstep = 0
+            write(LIS_logunit,33) "UIUC root zone soil timestep: ",NOAHMP401_struc(n)%soiltstep
+        enddo
+    else
+        do n=1, LIS_rc%nnest
+            call ESMF_ConfigGetAttribute(LIS_config, NOAHMP401_struc(n)%soiltstep, rc=rc)
+            write(LIS_logunit,33) "UIUC root zone soil timestep: ",NOAHMP401_struc(n)%soiltstep
+        enddo
+    endif 
+
     ! The following lines hard code the LDT NetCDF variable names. 
     ! Modified by Zhuo Wang on 11/08/2018
     ! Setting some values to PLANTING, HARVEST, SEASON_GDD, SOILCOMP, SOILCL1-->SOILCL4 in NoahMP401_main.F90

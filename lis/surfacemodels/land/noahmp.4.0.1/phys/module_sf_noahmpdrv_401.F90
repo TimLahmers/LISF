@@ -19,8 +19,8 @@ CONTAINS
 	       PLANTING,  HARVEST,SEASON_GDD,                                     &
                  IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,        & ! IN : User options
               IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC,        & ! IN : User options
-              IOPT_GLA, IOPT_SNDPTH, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP, & ! IN : User options
-              IZ0TLND, SF_URBAN_PHYSICS,                                    & ! IN : User options
+              IOPT_GLA, IOPT_SNDPTH, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP,     & ! IN : User options
+              IZ0TLND, SF_URBAN_PHYSICS, IOPT_ROOT, soiltstep,                    & ! IN : User options
 	      SOILCOMP,  SOILCL1,  SOILCL2,   SOILCL3,  SOILCL4,            & ! IN : User options
                    T3D,     QV3D,     U_PHY,    V_PHY,   SWDOWN,      GLW,  & ! IN : Forcing
 		 P8W3D,PRECIP_IN,        SR,                                & ! IN : Forcing
@@ -57,6 +57,9 @@ CONTAINS
                ids,ide,  jds,jde,  kds,kde,                    &
                ims,ime,  jms,jme,  kms,kme,                    &
                its,ite,  jts,jte,  kts,kte, PRINTDEBUG, loctime,            &
+               ! Root water uptake scheme
+               EASYXY, ROOTACTIVITYXY, INACTIVEXY, KROOTXY, KWTDXY, BTRANIXY, & 
+               PSIXY , GWRDXY, FDEPTHXY, ROOT_UPDATE, restart_flag, &    
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL     )
 !----------------------------------------------------------------
     USE MODULE_SF_NOAHMPLSM_401
@@ -113,6 +116,8 @@ CONTAINS
     INTEGER,                                         INTENT(IN   ) ::  IOPT_SOIL ! soil configuration option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_PEDO ! soil pedotransfer function option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_CROP ! crop model option (0->none; 1->Liu et al.; 2->Gecros)
+    INTEGER,                                         INTENT(IN   ) ::  IOPT_ROOT ! dynamic rooting depth scheme (Fan et al. 2017) (1->off ; 2-> on)
+    INTEGER,                                            INTENT(IN   ) ::  soiltstep ! soil timestep (s), default:0->same as main model timestep
     INTEGER,                                         INTENT(IN   ) ::  IZ0TLND   ! option of Chen adjustment of Czil (not used)
     INTEGER,                                         INTENT(IN   ) ::  sf_urban_physics   ! urban physics option
     REAL,    DIMENSION( ims:ime,       8, jms:jme ), INTENT(IN   ) ::  SOILCOMP  ! soil sand and clay percentage
@@ -137,6 +142,10 @@ CONTAINS
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(IN   ), OPTIONAL ::  MP_SNOW   ! snow precipitation entering land model [mm]       ! MB/AN : v3.7
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(IN   ), OPTIONAL ::  MP_GRAUP  ! graupel precipitation entering land model [mm]    ! MB/AN : v3.7
     REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(IN   ), OPTIONAL ::  MP_HAIL   ! hail precipitation entering land model [mm]       ! MB/AN : v3.7
+
+! Root Zone (input)
+    REAL,    DIMENSION( ims:ime,          jms:jme ), INTENT(IN   ) ::  FDEPTHXY  ! e-folding depth of permeability decrease [m]
+    LOGICAL,                                         INTENT(IN   ) ::  restart_flag
 
 ! Crop Model
     INTEGER, DIMENSION( ims:ime,          jms:jme ), INTENT(IN   ) ::  CROPCAT   ! crop catagory
@@ -165,6 +174,17 @@ CONTAINS
 !    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(IN) ::  QUARTZ_3D ! Soil quartz content
 !    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFDK_2D  ! Reference Soil Conductivity
 !    REAL,    DIMENSION( ims:ime, jms:jme ), INTENT(IN)          ::  REFKDT_2D ! Soil Infiltration Parameter
+
+! INOUT (UIUC Root Zone)
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT) ::  EASYXY    ! root scheme ease function [-]
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT) ::  ROOTACTIVITYXY ! root activity function (0 - 1)
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT) ::  INACTIVEXY     ! number of timesteps with inactive roots [-]
+    INTEGER, DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  KROOTXY   ! layer depth of root zone   [-]
+    INTEGER, DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  KWTDXY    ! layer depth of water table [-]
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT) ::  PSIXY     ! soil matric potential [m]
+    INTEGER, DIMENSION( ims:ime,          jms:jme ), INTENT(INOUT) ::  GWRDXY    ! root water uptake depth [m]
+    REAL,    DIMENSION( ims:ime, 1:nsoil, jms:jme ), INTENT(INOUT) ::  BTRANIXY  ! beta factor for soil moisture stress (0 - 1)
+    LOGICAL,                                         INTENT(INOUT) ::  ROOT_UPDATE    ! boolean value - when TRUE, update variables based on root scheme 
 
 ! INOUT (with generic LSM equivalent)
 
@@ -420,7 +440,20 @@ CONTAINS
     REAL                                :: CHLEAF       ! leaf exchange coefficient 
     REAL                                :: CHUC         ! under canopy exchange coefficient 
     REAL                                :: CHV2         ! veg 2m exchange coefficient 
-    REAL                                :: CHB2         ! bare 2m exchange coefficient 
+    REAL                                :: CHB2         ! bare 2m exchange coefficient
+
+! necessary for root scheme
+    REAL, DIMENSION(1 : NSOIL)          :: EASY         ! root scheme ease function [-]
+    REAL, DIMENSION(1 : NSOIL)          :: ROOTACTIVITY ! root activity function (0 - 1)
+    REAL, DIMENSION(1 : NSOIL)          :: INACTIVE     ! number of timesteps with inactive roots [-] 
+    INTEGER                             :: KROOT        ! layer depth of root zone [-]
+    INTEGER                             :: KWTD         ! layer depth of water table [-]
+    REAL, DIMENSION(1 : NSOIL)          :: PSI          ! soil layer matric potential [m]
+    INTEGER                             :: GWRD         ! root water uptake depth [m]
+    REAL                                :: FDEPTH       ! e-folding depth of permeability decrease [m] 
+    REAL, DIMENSION(1 : NSOIL)          :: BTRANI       ! beta factor for soil moisture stress (0 - 1)
+ 
+! OUT (continued)
     REAL,   DIMENSION( 1:NSOIL)         :: RELSMC       ! relative soil moisture [-]
   REAL   :: PAHV    !precipitation advected heat - vegetation net (W/m2)
   REAL   :: PAHG    !precipitation advected heat - under canopy net (W/m2)

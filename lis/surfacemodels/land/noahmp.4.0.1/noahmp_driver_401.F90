@@ -23,7 +23,7 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
      dveg_opt, crs_opt, btr_opt, run_opt, sfc_opt, frz_opt,      & ! in : User options
      inf_opt, rad_opt, alb_opt , snf_opt, tbot_opt, stc_opt,     & ! in : User options
      gla_opt, sndpth_gla_opt, rsf_opt, soil_opt, pedo_opt,       & ! in : new options
-     crop_opt, iz0tlnd, urban_opt,                               & ! in : new options
+     crop_opt, iz0tlnd, urban_opt, root_opt, soiltstep,          & ! in : new options
      soilcomp, soilcL1, soilcL2, soilcL3, soilcL4,               & ! in : new options
      tair    , psurf   , wind_e   , wind_n   , qair    ,         & ! in : forcing
      swdown  , lwdown  , prcp    ,                               & ! in : forcing
@@ -39,6 +39,8 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
      wood    , stblcp  , fastcp  , lai     , sai     , tauss   , & ! in/out Noah MP only
      smoiseq , smcwtd  ,deeprech , rech    ,                     & ! in/out Noah MP only
      grain   , gdd     , pgs     ,                               & ! in/out Noah MP only for crop model
+     easy, rootactivity, inactive, kroot   , kwtd    , psi     , & ! in/out Noah MP only for root zone
+     gwrd    , btrani  , fdepth_col ,                            & ! in/out Noah MP only for root zone
      gecros_state,                                               & ! in/out gecros model
      t2mv    , t2mb    , q2mv    , q2mb    ,                     & ! out Noah MP only
      trad    , nee     , gpp     , npp     , fveg    , runsf   , & ! out Noah MP only
@@ -97,6 +99,17 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   real,    intent(inout) :: grain             ! mass of grain XING [g/m2]
   integer,    intent(inout) :: pgs
 
+  ! UIUC Root Zone
+  real,    intent(inout) :: easy              ! Root scheme ease function [-]  
+  real,    intent(inout) :: rootactivity      ! Root activity function [-]
+  real,    intent(inout) :: inactive           ! Number of timesteps with inactive roots [-]
+  integer,    intent(inout) :: kroot          ! Layer depth of root zone [-]
+  integer,    intent(inout) :: kwtd           ! Layer depth of water table [-]
+  real,    intent(inout) :: psi               ! Soil matric potential [m]
+  integer,    intent(inout) :: gwrd           ! Root water uptake depth [m] 
+  real,    intent(inout) :: btrani            ! Beta factor for soil moisture stress [-] 
+  real,    intent(inout) :: fdepth_col        ! E-Folding Depth for Single Column
+
   ! gecros model
   real,    intent(inout) :: gecros_state(60)  !  gecros crop
 
@@ -126,6 +139,8 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   integer, intent(in) :: crop_opt             ! crop model option (0->none; 1->Liu et al.; 2->Gecros)
   integer, intent(in) :: iz0tlnd              ! option of Chen adjustment of Czil (not used)
   integer, intent(in) :: urban_opt            ! urban physics option
+  integer, intent(in) :: root_opt             ! dynamic rooting depth scheme (Fan et al. 2017) (1->off; 2->on)
+  integer, intent(in) :: soiltstep            ! soil time step (s) control namelist option (default=0: same as main NoahMP timstep)
   real, intent(in) :: soilcomp(8)             ! soil sand and clay percentage
   real, intent(in) :: soilcL1                 ! soil texture in layer 1
   real, intent(in) :: soilcL2                 ! soil texture in layer 2
@@ -284,7 +299,11 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
 ! real, dimension(1:60) :: gecros1d     !  gecros crop
 ! real,                 :: gecros_dd ,gecros_tbem,gecros_emb ,gecros_ema, &
 !                          gecros_ds1,gecros_ds2 ,gecros_ds1x,gecros_ds2x
-  
+ 
+  ! TML: local root zone flags:
+  logical             :: root_update    ! If TRUE, update variables based on root scheme 
+  logical             :: restart_flag
+ 
   real                :: dx
   character(len=12)   :: nowdate
   integer :: k 
@@ -416,6 +435,16 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   real, dimension(1,1) :: graininout
   real, dimension(1,1) :: gddinout 
   integer, dimension(1,1) :: pgsinout
+  ! Root Zone Variables:
+  real, dimension(1,nsoil,1) :: easyinout
+  real, dimension(1,nsoil,1) :: rootactivityinout
+  real, dimension(1,nsoil,1) :: inactiveinout
+  integer, dimension(1,1) :: krootinout 
+  integer, dimension(1,1) :: kwtdinout
+  real, dimension(1,nsoil,1) :: psiinout
+  integer, dimension(1,1) :: gwrdinout
+  real, dimension(1,nsoil,1) :: btraniinout
+  real, dimension(1,1) :: fdepthinout
   real, dimension(1,60,1) :: gecros_stateinout
   real, dimension(1,1) :: t2mvout 
   real, dimension(1,1) :: t2mbout
@@ -495,6 +524,10 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
    xice  = 0
    ! Fraction of grid determining seaice (from WRF and HRLDAS)
    xice_thres = 0.5
+
+   ! Root Zone: Set restart and update to false
+   root_update = .false.
+   restart_flag = .false.
 
 #ifndef WRF_HYDRO
    sfcheadrt = 0.0
@@ -679,6 +712,14 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   graininout(1,1)     = grain
   gddinout(1,1)       = gdd
   pgsinout(1,1)       = pgs
+  easyinout(1,:,1)         = easy
+  rootactivityinout(1,:,1) = rootactivity
+  inactiveinout(1,:,1)     = inactive
+  krootinout(1,1)     = kroot
+  psiinout(1,:,1)          = psi
+  gwrdinout(1,1)      = gwrd
+  btraniinout(1,:,1)       = btrani
+  fdepthinout(1,1) = fdepth_col
   gecros_stateinout(1,:,1) = gecros_state(:)
   t2mvout(1,1) = t2mv
   t2mbout(1,1) = t2mb
@@ -752,8 +793,8 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
        cropcatin , plantingin, harvestin ,season_gddin,                    &
        dveg_opt, crs_opt , btr_opt ,run_opt  , sfc_opt , frz_opt,  & ! in : user options
        inf_opt , rad_opt , alb_opt ,snf_opt  , tbot_opt, stc_opt,  & ! in : user options
-       gla_opt , sndpth_gla_opt, rsf_opt , soil_opt,pedo_opt , crop_opt,           & ! in : user options
-       iz0tlnd , urban_opt,                                        & ! in : user options
+       gla_opt , sndpth_gla_opt, rsf_opt , soil_opt,pedo_opt , crop_opt,     & ! in : user options
+       iz0tlnd , urban_opt, root_opt, soiltstep,                             & ! in : user options
        soilcompin, soilcL1in, soilcL2in, soilcL3in, soilcL4in,               & ! in : user options
        sfctmp(1)  , q2(1)  , uu(1)    , vv(1) , soldnin , lwdnin  , & ! in : forcing 
        sfcprs(1)  , prcpin  , srin      ,                             & ! in : forcing
@@ -790,8 +831,12 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
 #endif
        ids,ide,  jds,jde,  kds,kde,                                &
        ims,ime,  jms,jme,  kms,kme,                                &
-       its,ite,  jts,jte,  kts,kte, printdebug, loctime) ! TML: Added debugging term.
-  
+       its,ite,  jts,jte,  kts,kte, printdebug, loctime,           & ! TML: Added debugging term.
+               ! Root water uptake scheme
+       easyinout, rootactivityinout, inactiveinout, krootinout, kwtdinout, btraniinout, &
+       psiinout , gwrdinout, fdepthinout, root_update, restart_flag)  
+
+
   ! Added by Zhuo Wang and Shugong on 10/30/2018
   tsk = tskinout(1,1)
   hfx = hfxinout(1,1)

@@ -111,6 +111,8 @@ module NoahMP401_module
 !     crop model option (0-$>$none; 1-$>$Liu et al.; 2-$>$Gecros). unit: -
 !   \item[urban\_opt]
 !     urban physics option. unit: -
+!   \item[root\_opt]
+!     dynamic rooting depth scheme (Fan et al. 2017) (1->off; 2->on)
 !   \item[soilcomp]
 !     soil sand and clay percentage. unit: -
 !   \item[soilcL1]
@@ -450,6 +452,15 @@ module NoahMP401_module
         real               :: qrf        !MMF output SW for MMF
         real               :: qspring    !MMF output, SW 
         real               :: rechclim   !SW 
+        real               :: easy         !TML UIUC Root
+        real               :: rootactivity !TML
+        real               :: inactive     !TML
+        integer            :: kroot        !TML
+        integer            :: kwtd         !TML
+        real               :: psi          !TML
+        integer            :: gwrd         !TML
+        real               :: btrani       !TML
+        real               :: fdepth_col   !TML
         real               :: grain
         real               :: gdd
         integer            :: pgs
