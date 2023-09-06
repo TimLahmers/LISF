@@ -561,7 +561,13 @@ subroutine HYMAP2_routing_run(n)
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)           
            
         endif
-        
+
+        !TML: Print Statements to test 2-way coupling variables:       
+        !print *, "Max. sfc runoff:        ",maxval(surface_runoff)
+        !print *, "Max. sub-sfc runoff:    ",maxval(baseflow) 
+        !print *, "Max. sfc runoff pt:     ",maxloc(surface_runoff_t)
+        !print *, "Max. sub-sfc runoff pt: ",maxloc(baseflow_t) 
+
         call HYMAP2_model(n,real(HYMAP2_routing_struc(n)%imis),&
              LIS_rc%lnc(n),&
              LIS_rc%lnr(n),&
@@ -728,7 +734,7 @@ subroutine HYMAP2_routing_run(n)
           ! Will need to add declarations and allocate local variables... 
           ! River Depth
           call ESMF_StateGet(LIS_runoff_state(n),"River Depth",rivdph_field, rc=status)
-          call LIS_verify(status, "HYMAP2_routing_run: ESMF_StateGet failed for River Storage")
+          call LIS_verify(status, "HYMAP2_routing_run: ESMF_StateGet failed for River Depth")
 
           call ESMF_FieldGet(rivdph_field,localDE=0,farrayPtr=rivdphtmp_lvec,rc=status)
           call LIS_verify(status)

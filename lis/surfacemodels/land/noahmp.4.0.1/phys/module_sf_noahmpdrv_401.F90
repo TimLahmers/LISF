@@ -19,8 +19,8 @@ CONTAINS
 	       PLANTING,  HARVEST,SEASON_GDD,                                     &
                  IDVEG, IOPT_CRS,  IOPT_BTR, IOPT_RUN, IOPT_SFC, IOPT_FRZ,        & ! IN : User options
               IOPT_INF, IOPT_RAD,  IOPT_ALB, IOPT_SNF,IOPT_TBOT, IOPT_STC,        & ! IN : User options
-              IOPT_GLA, IOPT_SNDPTH, IOPT_CHAN, IOPT_RSF, IOPT_SOIL,IOPT_PEDO,IOPT_CROP, & ! IN : User options
-              IZ0TLND, SF_URBAN_PHYSICS,                                    & ! IN : User options
+              IOPT_GLA, IOPT_SNDPTH, IOPT_CHAN, ENABLE2WAYCPL, IOPT_RSF,          & ! IN : User options
+              IOPT_SOIL, IOPT_PEDO, IOPT_CROP, IZ0TLND, SF_URBAN_PHYSICS,         & ! IN : User options
 	      SOILCOMP,  SOILCL1,  SOILCL2,   SOILCL3,  SOILCL4,            & ! IN : User options
                    T3D,     QV3D,     U_PHY,    V_PHY,   SWDOWN,      GLW,  & ! IN : Forcing
 		 P8W3D,PRECIP_IN,        SR,                                & ! IN : Forcing
@@ -110,6 +110,7 @@ CONTAINS
     INTEGER,                                         INTENT(IN   ) ::  IOPT_GLA  ! glacier option (1->phase change; 2->simple)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_SNDPTH !snow depth max for glacier model [mm]
     INTEGER,                                         INTENT(IN   ) ::  IOPT_CHAN ! MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) 
+    INTEGER,                                         INTENT(IN   ) ::  ENABLE2WAYCPL ! HyMAP 2-way coupling option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_RSF  ! surface resistance (1->Sakaguchi/Zeng; 2->Seller; 3->mod Sellers; 4->1+snow)
     INTEGER,                                         INTENT(IN   ) ::  IOPT_SOIL ! soil configuration option
     INTEGER,                                         INTENT(IN   ) ::  IOPT_PEDO ! soil pedotransfer function option
@@ -1034,7 +1035,8 @@ CONTAINS
          ICE=0                              ! Neither sea ice or land ice.
          CALL NOAHMP_SFLX (parameters, &
             I       , J       , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
-            DT      , DX      , DZ8W1D  , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
+            DT      , DX      , DZ8W1D  , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration
+            ENABLE2WAYCPL,                                              & ! IN : Model configuration 
             FVEG    , FVGMAX  , VEGTYP  , ICE     , IST     , CROPTYPE, & ! IN : Vegetation/Soil characteristics
             SMCEQ   ,                                                   & ! IN : Vegetation/Soil characteristics
             T_ML    , P_ML    , PSFC    , U_ML    , V_ML    , Q_ML    , & ! IN : Forcing

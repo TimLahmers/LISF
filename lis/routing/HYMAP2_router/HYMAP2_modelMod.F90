@@ -316,6 +316,8 @@ contains
       rivvel=rvel
       rarea=rivwth*rivdph
       rivout=rarea*rvel
+      !write(LIS_logunit,*)"rivout",rivout
+      !write(LIS_logunit,*)"rivsto",rivsto 
       rivout=min(rivout,rivsto/dt)
     elseif(outlet==1)then
       rslope=slpmin

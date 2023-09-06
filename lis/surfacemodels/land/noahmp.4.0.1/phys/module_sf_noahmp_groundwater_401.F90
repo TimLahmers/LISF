@@ -9,12 +9,13 @@ MODULE module_sf_noahmp_groundwater_401
 
 CONTAINS
 
-  SUBROUTINE WTABLE_mmf_noahmp (NSOIL     ,CHANOPT  ,XLAND   ,XICE   ,XICE_THRESHOLD ,& !in
+  SUBROUTINE WTABLE_mmf_noahmp (NSOIL ,CHANOPT  ,ENABLE2WAYCPL ,XLAND ,XICE ,XICE_THRESHOLD ,& !in
                                 ISICE    ,ISLTYP   ,SMOISEQ ,DZS     ,WTDDT         ,& !in
                                 FDEPTH    ,AREA     ,TOPO    ,ISURBAN ,IVGTYP        ,& !in
                                 RIVERCOND ,RIVERBED ,EQWTD   ,CWIDTH  ,CLENGTH ,PEXP ,& !in
                                 SMOIS     ,SH2OXY   ,SMCWTD  ,WTD  ,QRF              ,& !inout
                                 DEEPRECH  ,QSPRING  ,QSLAT   ,QRFS ,QSPRINGS  ,RECH  ,& !inout
+                                RIVSTO2D,  RIVDPH2D,                                  & !inout
                                 ids,ide, jds,jde, kds,kde,                    &
                                 ims,ime, jms,jme, kms,kme,                    &
                                 its,ite, jts,jte, kts,kte                     )
@@ -30,7 +31,7 @@ CONTAINS
   INTEGER,  INTENT(IN   )   ::     ids,ide, jds,jde, kds,kde,  &
        &                           ims,ime, jms,jme, kms,kme,  &
        &                           its,ite, jts,jte, kts,kte
-  INTEGER,  INTENT(IN   )   ::     CHANOPT
+  INTEGER,  INTENT(IN   )   ::     CHANOPT, ENABLE2WAYCPL
     REAL,   INTENT(IN)        ::     WTDDT
     REAL,   INTENT(IN)        ::     XICE_THRESHOLD
     INTEGER,  INTENT(IN   )   ::     ISICE
@@ -70,7 +71,9 @@ CONTAINS
                                                           QSLAT, &
                                                            QRFS, &
                                                        QSPRINGS, &
-                                                           RECH
+                                                           RECH, &
+                                                         RIVSTO2D, &
+                                                         RIVDPH2D
 
 !OUT
 
@@ -134,9 +137,20 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
                  RCOND = RIVERCOND(I,J)       
                ENDIF
              ENDIF
-             QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)
+             IF(CHANOPT .EQ. 1  .AND. ENABLE2WAYCPL .EQ. 3) THEN !TML: HyMAP Chan. + 2-way Cpl.
+               QRF(I,J) = RCOND * (WTD(I,J)-(RIVERBED(I,J)+RIVDPH2D(I,J))) * DELTAT/AREA(I,J)
+               IF( (QRF(I,J) .LT. 0.0) .AND. (QRF(I,J) + RIVSTO2D(I,J) .LE. 0.0)) THEN !Prevent infiltration (channel loss) from exceeding storage
+                 QRF(I,J) = -1.0*RIVSTO2D(I,J) 
+               ENDIF
+             ELSE
+               QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)
 !for now, dont allow it to go from river to groundwater
-             QRF(I,J) = MAX(QRF(I,J),0.)
+               QRF(I,J) = MAX(QRF(I,J),0.) 
+             ENDIF
+
+! only activate this line when enable2waycpl != 3; then if (rivsto + QRF < 0) then QRF = rivsto
+             ! TML: if 2-way coupling with HyMAP is activated, QRF is used to update riverstorage (need additional flag)
+             ! Use this variable to activate: enable2waycpl==3 
           ELSE
              QRF(I,J) = 0.
           ENDIF

@@ -28,8 +28,10 @@
 ! !INTERFACE:
 subroutine NoahMP401_main(n)
 ! !USES:
+    use ESMF
     use LIS_coreMod
     use LIS_histDataMod
+    use LIS_logMod,       only : LIS_verify
     use LIS_timeMgrMod, only : LIS_isAlarmRinging
     use LIS_constantsMod,  only : LIS_CONST_RHOFW   !New
     use LIS_vegDataMod,    only : LIS_lai, LIS_sai
@@ -37,6 +39,7 @@ subroutine NoahMP401_main(n)
     use LIS_FORC_AttributesMod
     use NoahMP401_lsmMod
     use module_sf_noahmp_groundwater_401, only : WTABLE_mmf_noahmp
+    use LIS_routingMod, only : LIS_runoff_state
 
     implicit none
 ! !ARGUMENTS:
@@ -105,6 +108,7 @@ subroutine NoahMP401_main(n)
     integer              :: tmp_tbot_opt           ! lower boundary of soil temperature [-]
     integer              :: tmp_stc_opt            ! snow/soil temperature time scheme [-]
     integer              :: tmp_gla_opt            ! glacier option (1->phase change; 2->simple) [-]
+    integer              :: tmp_enable2waycpl      ! 2-Way Coupling Option for HyMAP
     integer              :: tmp_sndpth_gla_opt     ! snow depth max for glacier model [mm]
     integer              :: tmp_chan_exfil_opt     ! MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) [-]
     integer              :: tmp_rsf_opt            ! surface resistance (1->Sakaguchi/Zeng;2->Seller;3->mod Sellers;4->1+snow) [-]
@@ -298,6 +302,10 @@ subroutine NoahMP401_main(n)
     real, allocatable :: qrf(:, :)
     real, allocatable :: qspring(:, :)
     
+    !inout; 2-way river exchange (2D)
+    real, allocatable :: rivsto2d(:, :)
+    real, allocatable :: rivdph2d(:, :)
+
     ! local variables, need to be very careful 
     integer::                   ids,ide, jds,jde, kds,kde,                    &
                                 ims,ime, jms,jme, kms,kme,                    &
@@ -307,11 +315,16 @@ subroutine NoahMP401_main(n)
     ! local
     real                        ::  xice_threshold
     integer                     ::  isice
-    
+    integer                     ::  status
+    integer                     ::  enable2waycpl
 
     ! used to be parameters but set to constant number
 
+    call ESMF_AttributeGet(LIS_runoff_state(n),"2 way coupling",&
+         enable2waycpl, rc=status)
+    call LIS_verify(status)
 
+    tmp_enable2waycpl = enable2waycpl
 
     allocate( tmp_sldpth( NOAHMP401_struc(n)%nsoil ) )
     allocate( tmp_shdfac_monthly( 12 ) )
@@ -454,6 +467,11 @@ subroutine NoahMP401_main(n)
             ! check validity of rivsto
             if(tmp_rivsto .eq. LIS_rc%udef) then
                 write(LIS_logunit, *) "[ERR] undefined value found for forcing variable rivsto in NoahMP36"
+                write(LIS_logunit, *) "for tile ", t, "latitude = ", lat, "longitude = ", lon
+                call LIS_endrun()
+            endif
+            if(tmp_rivdph .eq. LIS_rc%udef) then
+                write(LIS_logunit, *) "[ERR] undefined value found for forcing variable rivdph in NoahMP36"
                 write(LIS_logunit, *) "for tile ", t, "latitude = ", lat, "longitude = ", lon
                 call LIS_endrun()
             endif
@@ -692,6 +710,7 @@ subroutine NoahMP401_main(n)
                                    tmp_gla_opt           , & ! in    - glacier option (1->phase change; 2->simple) [-]
                                    tmp_sndpth_gla_opt    , & ! in    - Snow depth max for glacier model [mm]
                                    tmp_chan_exfil_opt    , & ! in    - MMF Channel Exfiltration (0->Default MMF Expon.; 1->LEAF model w/HyMAP) [-]
+                                   tmp_enable2waycpl     , & ! in    - HyMAP 2-way coupling option
                                    tmp_rsf_opt           , & ! in    - surface resistance(1->Sakaguchi/Zeng;2->Seller;3->mod Sellers;4->1+snow) [-]
                                    tmp_soil_opt          , & ! in    - soil configuration option [-]
                                    tmp_pedo_opt          , & ! in    - soil pedotransfer function option [-]
@@ -1021,6 +1040,9 @@ subroutine NoahMP401_main(n)
                 allocate(    clength(min_col:max_col, min_row:max_row))     ! P
             !endif            
 
+            allocate(    rivsto2d(min_col:max_col, min_row:max_row))      ! P
+            allocate(    rivdph2d(min_col:max_col, min_row:max_row))      ! P
+
             allocate(    isltyp(min_col:max_col, min_row:max_row))      ! P
             allocate(    ivgtyp(min_col:max_col, min_row:max_row))      ! P
 
@@ -1078,6 +1100,9 @@ subroutine NoahMP401_main(n)
                         qsprings(col,row)    = noahmp401_struc(n)%noahmp401(t)%qsprings 
                         qrf(col,row)         = noahmp401_struc(n)%noahmp401(t)%qrf
                         qspring(col,row)     = noahmp401_struc(n)%noahmp401(t)%qspring
+                        ! 2D River Variables (0.0 if not active)
+                        rivsto2d(col,row)      = noahmp401_struc(n)%noahmp401(t)%rivsto
+                        rivdph2d(col,row)      = noahmp401_struc(n)%noahmp401(t)%rivdph
 
                     endif
                     
@@ -1105,6 +1130,8 @@ subroutine NoahMP401_main(n)
             enddo ! row loop
             
             wtddt = LIS_rc%ts/60.0 ! time step in minutes? 
+
+            print *, "Max. River Depth: ",maxval(noahmp401_struc(n)%noahmp401(:)%rivdph) 
 
             if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
                 chanopt = 1
@@ -1141,12 +1168,13 @@ subroutine NoahMP401_main(n)
             !print*, 'RECH = ',rech(25,12)
 
             !!! call MMF physics 
-            call  WTABLE_mmf_noahmp (nsoil     ,chanopt  ,xland   ,xice   ,xice_threshold ,& !in
+            call  WTABLE_mmf_noahmp (nsoil ,chanopt ,enable2waycpl ,xland ,xice ,xice_threshold ,& !in
                                      isice     ,isltyp   ,smoiseq ,dzs     ,wtddt         ,& !in
                                      fdepth    ,area     ,topo    ,isurban ,ivgtyp        ,& !in
                                      rivercond ,riverbed ,eqwtd   ,cwidth  ,clength ,pexp ,& !in
                                      smois     ,sh2oxy   ,smcwtd  ,wtd  ,qrf              ,& !inout
                                      deeprech  ,qspring  ,qslat   ,qrfs ,qsprings  ,rech  ,& !inout
+                                     rivsto2d,  rivdph2d,     & !River Variables; inout                                
                                      ids,ide, jds,jde, kds,kde,                    &
                                      ims,ime, jms,jme, kms,kme,                    &
                                      its,ite, jts,jte, kts,kte                     )
@@ -1199,6 +1227,8 @@ subroutine NoahMP401_main(n)
                     noahmp401_struc(n)%noahmp401(t)%qsprings    = qsprings(col,row)
                     noahmp401_struc(n)%noahmp401(t)%qrf         = qrf(col,row)
                     noahmp401_struc(n)%noahmp401(t)%qspring     = qspring(col,row)
+                    noahmp401_struc(n)%noahmp401(t)%rivsto      = rivsto2d(col,row) ! River Variables
+                    noahmp401_struc(n)%noahmp401(t)%rivdph      = rivdph2d(col,row)
                 enddo ! col loop
             enddo ! row loop
 

@@ -363,6 +363,7 @@ contains
   SUBROUTINE NOAHMP_SFLX (parameters, &
                    ILOC    , JLOC    , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
                    DT      , DX      , DZ8W    , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
+                   ENABLE2WAYCPL,                                              & ! IN : Model configuration 
                    SHDFAC  , SHDMAX  , VEGTYP  , ICE     , IST     , CROPTYPE, & ! IN : Vegetation/Soil characteristics
                    SMCEQ   ,                                                   & ! IN : Vegetation/Soil characteristics
                    SFCTMP  , SFCPRS  , PSFC    , UU      , VV      , Q2      , & ! IN : Forcing
@@ -417,6 +418,7 @@ contains
   INTEGER                        , INTENT(IN)    :: NSOIL  !no. of soil layers        
   INTEGER                        , INTENT(IN)    :: ILOC   !grid index
   INTEGER                        , INTENT(IN)    :: JLOC   !grid index
+  INTEGER                        , INTENT(IN)    :: ENABLE2WAYCPL !2-Way Coupling Option for HyMAP 
   REAL                           , INTENT(IN)    :: DT     !time step [sec]
   REAL, DIMENSION(       1:NSOIL), INTENT(IN)    :: ZSOIL  !layer-bottom depth from soil surf (m)
   REAL                           , INTENT(IN)    :: Q2     !mixing ratio (kg/kg) lowest model layer
@@ -781,7 +783,7 @@ contains
 
 ! compute water budgets (water storages, ET components, and runoff)
 
-     CALL WATER (parameters,VEGTYP ,NSNOW  ,NSOIL  ,IMELT  ,DT     ,UU     , & !in
+     CALL WATER (parameters,VEGTYP ,NSNOW  ,NSOIL ,ENABLE2WAYCPL ,IMELT ,DT ,UU , & !in
                  VV     ,FCEV   ,FCTR   ,QPRECC ,QPRECL ,ELAI   , & !in
                  ESAI   ,SFCTMP ,QVAP   ,QDEW   ,ZSOIL  ,BTRANI , & !in
                  FICEOLD,PONDING,TG     ,IST    ,FVEG   ,iloc,jloc , SMCEQ , & !in
@@ -6335,7 +6337,7 @@ ENDIF   ! CROPTYPE == 0
 
 !== begin water ====================================================================================
 
-  SUBROUTINE WATER (parameters,VEGTYP ,NSNOW  ,NSOIL  ,IMELT  ,DT     ,UU     , & !in
+  SUBROUTINE WATER (parameters,VEGTYP ,NSNOW  ,NSOIL ,ENABLE2WAYCPL ,IMELT ,DT ,UU , & !in
                     VV     ,FCEV   ,FCTR   ,QPRECC ,QPRECL ,ELAI   , & !in
                     ESAI   ,SFCTMP ,QVAP   ,QDEW   ,ZSOIL  ,BTRANI , & !in
                     FICEOLD,PONDING,TG     ,IST    ,FVEG   ,ILOC   ,JLOC ,SMCEQ , & !in
@@ -6368,6 +6370,7 @@ ENDIF   ! CROPTYPE == 0
   INTEGER,                         INTENT(IN)    :: NSNOW   !maximum no. of snow layers
   INTEGER                        , INTENT(IN)    :: IST     !surface type 1-soil; 2-lake
   INTEGER,                         INTENT(IN)    :: NSOIL   !no. of soil layers
+  INTEGER,                         INTENT(IN)    :: ENABLE2WAYCPL !2-Way Coupling for HYMAP; used to determine if rivsto field should be copied
   INTEGER, DIMENSION(-NSNOW+1:0) , INTENT(IN)    :: IMELT   !melting state index [1-melt; 2-freeze]
   REAL,                            INTENT(IN)    :: DT      !main time step (s)
   REAL,                            INTENT(IN)    :: UU      !u-direction wind speed [m/s]
@@ -6539,7 +6542,8 @@ ENDIF   ! CROPTYPE == 0
 
        !ag (05Jan2021)
     !if flooded fraction flag is 1, i.e., if flooded fraction is above threshold, add river and flood storages to QINSUR
-    if(fldfrc==1)then
+    if(fldfrc==1 .and. ENABLE2WAYCPL==1)then ! Only add river storage when 2-way coupling is set to 1
+      print *, "WARNING: 2-way LSM coupling is turned on; fldfrc =", fldfrc
       QINSUR = QINSUR + (rivsto + fldsto) !surface water storage units are in m/s (See HYMAP2_routing_run.F90 and noahmp36_getsws_hymap2.F90)
     endif
 ! lake/soil water balances
@@ -6587,7 +6591,7 @@ ENDIF   ! CROPTYPE == 0
 
     !ag (05Jan2021)
     !if flooded fraction flag is 0, i.e., if flooded fraction is below threshold, add river and flood storages to RUNSRF after vertical water balance
-    if(fldfrc==0)then
+    if(fldfrc==0 .and. ENABLE2WAYCPL==1)then ! Only add river storage when 2-way coupling is set to 1
       RUNSRF = RUNSRF + (rivsto + fldsto)*1000. !surface water storage units are in m/s (See HYMAP2_routing_run.F90 and noahmp36_getsws_hymap2.F90)
     endif
     

@@ -87,7 +87,8 @@ subroutine noahmp401_getsws_hymap2(n)
      call ESMF_FieldGet(rivsto_field,localDE=0,farrayPtr=rivstotmp,rc=status)
      call LIS_verify(status,'ESMF_FieldGet failed for River Storage')
      where(rivstotmp/=LIS_rc%udef) &
-          NOAHMP401_struc(n)%noahmp401(:)%rivsto=rivstotmp/NOAHMP401_struc(n)%ts
+          NOAHMP401_struc(n)%noahmp401(:)%rivsto=rivstotmp !/NOAHMP401_struc(n)%ts
+     write(LIS_logunit, *) "Maximum River Storage (m^3): ", maxval(NOAHMP401_struc(n)%noahmp401(:)%rivsto)
 
      ! TML Add River Depth
      ! note: these are Noah-MP variables, so need to add definitions for these
@@ -101,7 +102,12 @@ subroutine noahmp401_getsws_hymap2(n)
           NOAHMP401_struc(n)%noahmp401(:)%rivdph=rivdphtmp
      write(LIS_logunit, *) "Maximum River Depth (m): ", maxval(NOAHMP401_struc(n)%noahmp401(:)%rivdph)
 
+
+     ! Set Flood Fraction to 0 for all Reaches
+     !NOAHMP401_struc(n)%noahmp401(:)%fldfrc=0
+
      ! Flood Storage
+     ! TML: Adding this term in Noah_MP was causing the kinematic wave routing to crash. Can we take it out? 
      call ESMF_StateGet(LIS_runoff_state(n),"Flood Storage",fldsto_field,rc=status)
      call LIS_verify(status,'ESMF_StateGet failed for Flood Storage')
 
