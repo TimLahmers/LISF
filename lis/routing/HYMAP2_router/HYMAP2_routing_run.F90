@@ -60,16 +60,19 @@ subroutine HYMAP2_routing_run(n)
   integer, intent(in)   :: n  
   integer               :: m
   type(ESMF_Field)      :: sf_runoff_field
-  type(ESMF_Field)      :: baseflow_field  
+  type(ESMF_Field)      :: baseflow_field 
+  type(ESMF_Field)      :: qrf_field 
   type(ESMF_Field)      :: rivsto_field
   type(ESMF_Field)      :: rivdph_field  
   type(ESMF_Field)      :: fldsto_field
   type(ESMF_Field)      :: fldfrc_field
   real,   pointer       :: surface_runoff_t(:)
   real,   pointer       :: baseflow_t(:)
+  real,   pointer       :: qrf_t(:)
   real,   allocatable   :: surface_runoff(:)
   real,   allocatable   :: baseflow(:)
-  real,   allocatable   :: tmpr(:,:),tmpb(:,:)
+  real,   allocatable   :: qrf(:)
+  real,   allocatable   :: tmpr(:,:),tmpb(:,:),tmpq(:,:)
   
   real,   allocatable   :: evap(:)
   real,   allocatable   :: tair(:)
@@ -190,8 +193,10 @@ subroutine HYMAP2_routing_run(n)
 
      allocate(surface_runoff(HYMAP2_routing_struc(n)%nseqall))     
      allocate(baseflow(HYMAP2_routing_struc(n)%nseqall))
+     allocate(qrf(HYMAP2_routing_struc(n)%nseqall))
      allocate(tmpr(LIS_rc%lnc(n),LIS_rc%lnr(n)))
      allocate(tmpb(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+     allocate(tmpq(LIS_rc%lnc(n),LIS_rc%lnr(n)))
 
      if(HYMAP2_routing_struc(n)%evapflag.ne.0)then
         allocate(tmp_tmp(LIS_rc%lnc(n),LIS_rc%lnr(n)))
@@ -332,6 +337,7 @@ subroutine HYMAP2_routing_run(n)
 
         tmpr=0.
         tmpb=0.
+        tmpq=0.
         
         !import surface runoff and baseflow
         call ESMF_StateGet(LIS_runoff_state(n),"Surface Runoff",sf_runoff_field,&
@@ -349,12 +355,22 @@ subroutine HYMAP2_routing_run(n)
         call ESMF_FieldGet(baseflow_field,localDE=0,farrayPtr=baseflow_t,&
              rc=status)
         call LIS_verify(status, "ESMF_FieldGet failed for Subsurface Runoff")
+        ! TML: add same block as for single ensemble member
+        if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
+            call ESMF_StateGet(LIS_runoff_state(n),"Groundwater River Water Flux",qrf_field,&
+                 rc=status)
+            call LIS_verify(status, "ESMF_StateGet failed for Groundwater River Water Flux")
 
+            call ESMF_FieldGet(qrf_field,localDE=0,farrayPtr=qrf_t,&
+                 rc=status)
+            call LIS_verify(status, "ESMF_FieldGet failed for Groundwater River Water Flux")
+           endif
 
         do m=1,LIS_rc%nensem(n)
 
            call LIS_tile2grid(n,m,tmpr,surface_runoff_t)
            call LIS_tile2grid(n,m,tmpb,baseflow_t)
+           call LIS_tile2grid(n,m,tmpq,qrf_t)
         
            call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
@@ -366,6 +382,15 @@ subroutine HYMAP2_routing_run(n)
                 HYMAP2_routing_struc(n)%imis,&
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)
+           call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+                HYMAP2_routing_struc(n)%nseqall,&
+                HYMAP2_routing_struc(n)%imis,&
+                HYMAP2_routing_struc(n)%seqx,&
+                HYMAP2_routing_struc(n)%seqy,tmpq,qrf)
+
+           if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
+               surface_runoff = surface_runoff + qrf !Add on exfiltration; disabled for simulations w/o LSM
+           endif
 
            call HYMAP2_model(n,real(HYMAP2_routing_struc(n)%imis),&
                 LIS_rc%lnc(n),&
@@ -512,6 +537,7 @@ subroutine HYMAP2_routing_run(n)
         if(LIS_rc%lsm.ne."none") then 
            tmpr=0.
            tmpb=0.
+           tmpq=0.
            
            !import surface runoff and baseflow
            call ESMF_StateGet(LIS_runoff_state(n),"Surface Runoff",sf_runoff_field,&
@@ -529,10 +555,24 @@ subroutine HYMAP2_routing_run(n)
            call ESMF_FieldGet(baseflow_field,localDE=0,farrayPtr=baseflow_t,&
                 rc=status)
            call LIS_verify(status, "ESMF_FieldGet failed for Subsurface Runoff")
-     
+           if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
+               call ESMF_StateGet(LIS_runoff_state(n),"Groundwater River Water Flux",qrf_field,&
+                    rc=status)
+               call LIS_verify(status, "ESMF_StateGet failed for Groundwater River Water Flux")
+
+               call ESMF_FieldGet(qrf_field,localDE=0,farrayPtr=qrf_t,&
+                    rc=status)
+               call LIS_verify(status, "ESMF_FieldGet failed for Groundwater River Water Flux")
+           endif
+           ! TML: if 2waycpl is 3, add block for qrf; then make surfce_runoff be surface_runoff + qrf
+           ! Make sure points are not undefined. Check for undefined.
+           ! Code may not be adapted for negative runoff; need to check after this change is made.    
+
+ 
            !temporary solution  
            call LIS_tile2grid(n,tmpr,surface_runoff_t)
            call LIS_tile2grid(n,tmpb,baseflow_t)
+           call LIS_tile2grid(n,tmpq,qrf_t)
            
            call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
@@ -544,6 +584,11 @@ subroutine HYMAP2_routing_run(n)
                 HYMAP2_routing_struc(n)%imis,&
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)
+           call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+                HYMAP2_routing_struc(n)%nseqall,&
+                HYMAP2_routing_struc(n)%imis,&
+                HYMAP2_routing_struc(n)%seqx,&
+                HYMAP2_routing_struc(n)%seqy,tmpq,qrf)
         else
 
            call readrunoffdata(trim(LIS_rc%runoffdatasource)//char(0),&
@@ -560,6 +605,10 @@ subroutine HYMAP2_routing_run(n)
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)           
            
+        endif
+
+        if (HYMAP2_routing_struc(n)%enable2waycpl==3 .and. LIS_rc%lsm.ne."none") then
+            surface_runoff = surface_runoff + qrf !Add on exfiltration; disabled for simulations w/o LSM
         endif
 
         !TML: Print Statements to test 2-way coupling variables:       
@@ -917,8 +966,10 @@ subroutine HYMAP2_routing_run(n)
     
     deallocate(surface_runoff)     
     deallocate(baseflow)
+    deallocate(qrf)
     deallocate(tmpr)
     deallocate(tmpb)
+    deallocate(tmpq)
     !deallocate(tmp_nensem)
     
     deallocate(rnfsto_mm)

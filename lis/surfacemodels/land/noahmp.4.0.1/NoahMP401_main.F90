@@ -320,9 +320,13 @@ subroutine NoahMP401_main(n)
 
     ! used to be parameters but set to constant number
 
-    call ESMF_AttributeGet(LIS_runoff_state(n),"2 way coupling",&
+    if (LIS_rc%routingmodel .EQ. "HYMAP2 router") then
+      call ESMF_AttributeGet(LIS_runoff_state(n),"2 way coupling",&
          enable2waycpl, rc=status)
-    call LIS_verify(status)
+      call LIS_verify(status)
+    else
+      enable2waycpl = 0
+    endif
 
     tmp_enable2waycpl = enable2waycpl
 

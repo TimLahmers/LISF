@@ -94,6 +94,7 @@ CONTAINS
   INTEGER,   DIMENSION( ims:ime, jms:jme )    :: LANDMASK !-1 for water (ice or no ice) and glacial areas, 1 for land where the LSM does its soil moisture calculations.
   
   REAL :: BEXP,DKSAT,PSISAT,SMCMAX,SMCWLT
+  REAL :: DPH !
   !REAL :: QLAT_temp,QRF_temp,QSPRING_temp,DEEPRECH_temp
 
     !print *,"WTABLE Called"
@@ -138,7 +139,8 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
                ENDIF
              ENDIF
              IF(CHANOPT .EQ. 1  .AND. ENABLE2WAYCPL .EQ. 3) THEN !TML: HyMAP Chan. + 2-way Cpl.
-               QRF(I,J) = RCOND * (WTD(I,J)-(RIVERBED(I,J)+RIVDPH2D(I,J))) * DELTAT/AREA(I,J)
+               DPH = min(RIVDPH2D(I,J),(TOPO(I,J)-RIVERBED(I,J)))
+               QRF(I,J) = RCOND * (WTD(I,J)-(RIVERBED(I,J)+DPH)) * DELTAT/AREA(I,J)
                IF( (QRF(I,J) .LT. 0.0) .AND. (QRF(I,J) + RIVSTO2D(I,J) .LE. 0.0)) THEN !Prevent infiltration (channel loss) from exceeding storage
                  QRF(I,J) = -1.0*RIVSTO2D(I,J) 
                ENDIF
