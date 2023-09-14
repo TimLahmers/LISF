@@ -306,6 +306,9 @@ contains
     integer       :: m
     integer       :: gdeltas
 
+    !TML local; for halos
+    integer       :: nseqall_temp 
+
     !ag (12Sep2019)
     type(ESMF_Field)     :: rivsto_field
     type(ESMF_Field)     :: rivdph_field
@@ -686,12 +689,23 @@ contains
             HYMAP2_routing_struc(n)%nextx,&
             mask,HYMAP2_routing_struc(n)%nseqall)
 
+
+       !dummy call
+       call HYMAP2_get_vector_size(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
+              LIS_rc%gnc(n),LIS_rc%gnr(n), &
+              LIS_ews_ind(n,LIS_localPet+1), &
+              LIS_nss_ind(n,LIS_localPet+1), &
+              HYMAP2_routing_struc(n)%imis,&
+              HYMAP2_routing_struc(n)%nextx,&
+              mask,nseqall_temp)
+       !print*, "nseqall [orig] ", HYMAP2_routing_struc(n)%nseqall
+       print*, "nseqall_temp   ", nseqall_temp
        LIS_rc%nroutinggrid(n) = HYMAP2_routing_struc(n)%nseqall
 
        gdeltas = HYMAP2_routing_struc(n)%nseqall
        
 #if (defined SPMD)
-       call MPI_ALLREDUCE(LIS_rc%nroutinggrid(n),&
+       call MPI_ALLREDUCE(nseqall_temp, & !LIS_rc%nroutinggrid(n),&
             LIS_rc%glbnroutinggrid(n),1,&
             MPI_INTEGER,MPI_SUM,&
             LIS_mpi_comm,status)
