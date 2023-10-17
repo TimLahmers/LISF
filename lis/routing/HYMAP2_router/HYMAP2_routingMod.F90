@@ -308,6 +308,10 @@ contains
 
     !TML local; for halos
     integer       :: nseqall_temp 
+    !integer, allocatable :: seqx_temp(:)       !1D sequence horizontal
+    !integer, allocatable :: seqy_temp(:)       !1D sequence vertical
+    !integer, allocatable :: outlet_temp(:)
+    !integer, allocatable :: next_temp(:)
 
     !ag (12Sep2019)
     type(ESMF_Field)     :: rivsto_field
@@ -645,7 +649,7 @@ contains
     !allocate matrixes
     do n=1, LIS_rc%nnest
        write(LIS_logunit,*)'[INFO] columns and rows', &
-            LIS_rc%lnc(n),LIS_rc%lnr(n)
+            LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)
        
        !ag (19Feb2016)
        allocate(HYMAP2_routing_struc(n)%nextx(LIS_rc%gnc(n),LIS_rc%gnr(n)))
@@ -656,21 +660,21 @@ contains
        ctitle = 'HYMAP_flow_direction_y'
        call HYMAP2_read_param_int_2d_global(ctitle,n,HYMAP2_routing_struc(n)%nexty)
        
-       allocate(elevtn(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+       allocate(elevtn(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
        ctitle = 'HYMAP_grid_elevation'
        call HYMAP2_read_param_real_2d(ctitle,n,elevtn)
        
-       allocate(uparea(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+       allocate(uparea(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
        ctitle = 'HYMAP_drain_area'
        call HYMAP2_read_param_real_2d(ctitle,n,uparea)
        
-       allocate(basin(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+       allocate(basin(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
        ctitle = 'HYMAP_basin'
        call HYMAP2_read_param_real_2d(ctitle,n,basin)  
        
-       allocate(mask(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+       allocate(mask(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
        ctitle = 'HYMAP_basin_mask'
-       call HYMAP2_read_param_int_2d(ctitle,n,mask)  
+       call HYMAP2_read_param_int_2d(ctitle,n,mask) 
 
        allocate(maskg(LIS_rc%gnc(n),LIS_rc%gnr(n)))
        ctitle = 'HYMAP_basin_mask'
@@ -700,6 +704,8 @@ contains
               mask,nseqall_temp)
        !print*, "nseqall [orig] ", HYMAP2_routing_struc(n)%nseqall
        print*, "nseqall_temp   ", nseqall_temp
+       !Re-assign nsequall:
+       HYMAP2_routing_struc(n)%nseqall = nseqall_temp
        LIS_rc%nroutinggrid(n) = HYMAP2_routing_struc(n)%nseqall
 
        gdeltas = HYMAP2_routing_struc(n)%nseqall
@@ -734,13 +740,18 @@ contains
        allocate(HYMAP2_routing_struc(n)%seqx(HYMAP2_routing_struc(n)%nseqall))
        allocate(HYMAP2_routing_struc(n)%seqy(HYMAP2_routing_struc(n)%nseqall))
 
+       !allocate(seqx_temp(nseqall_temp))
+       !allocate(seqy_temp(nseqall_temp))
+
        allocate(HYMAP2_routing_struc(n)%seqx_glb(LIS_rc%glbnroutinggrid(n)))
        allocate(HYMAP2_routing_struc(n)%seqy_glb(LIS_rc%glbnroutinggrid(n)))
 
        allocate(HYMAP2_routing_struc(n)%sindex(LIS_rc%gnc(n),LIS_rc%gnr(n)))
        allocate(HYMAP2_routing_struc(n)%outlet(HYMAP2_routing_struc(n)%nseqall))
+       !allocate(outlet_temp(nseqall_temp))
        allocate(HYMAP2_routing_struc(n)%outlet_glb(LIS_rc%glbnroutinggrid(n)))
        allocate(HYMAP2_routing_struc(n)%next(HYMAP2_routing_struc(n)%nseqall))
+       !allocate(next_temp(nseqall_temp)) 
        allocate(HYMAP2_routing_struc(n)%next_glb(LIS_rc%glbnroutinggrid(n)))
 
        allocate(HYMAP2_routing_struc(n)%elevtn(HYMAP2_routing_struc(n)%nseqall))
@@ -961,6 +972,9 @@ contains
 !          endif
        endif
 
+
+       
+
        HYMAP2_routing_struc(n)%seqx=0.0
        HYMAP2_routing_struc(n)%seqy=0.0
 
@@ -1079,10 +1093,11 @@ contains
        stop
 #endif
 
-       call HYMAP2_get_seq(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       ! TML: Run this twice with and without halos...
+       call HYMAP2_get_seq(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             LIS_rc%gnc(n),LIS_rc%gnr(n),&
-            LIS_ews_halo_ind(n,LIS_localPet+1), &
-            LIS_nss_halo_ind(n,LIS_localPet+1), &
+            LIS_ews_ind(n,LIS_localPet+1), &
+            LIS_nss_ind(n,LIS_localPet+1), &
             HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%nextx,&
@@ -1115,15 +1130,15 @@ contains
 #endif
 
     do n=1,LIS_rc%nnest
-       allocate(tmp_real(LIS_rc%lnc(n),LIS_rc%lnr(n)))
-       allocate(tmp_real_nz(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       allocate(tmp_real(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
+       allocate(tmp_real_nz(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             HYMAP2_routing_struc(n)%nz))
 
     ctitle = 'HYMAP_river_width'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
        if(HYMAP2_routing_struc(n)%useens.eq.0) then 
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1131,7 +1146,7 @@ contains
                tmp_real,HYMAP2_routing_struc(n)%rivwth(:,1))
        else
           do m=1,LIS_rc%nensem(n)
-             call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+             call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                   1,HYMAP2_routing_struc(n)%nseqall,&
                   HYMAP2_routing_struc(n)%imis,&
                   HYMAP2_routing_struc(n)%seqx,&
@@ -1144,7 +1159,7 @@ contains
     ctitle = 'HYMAP_river_length'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1156,7 +1171,7 @@ contains
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
        if(HYMAP2_routing_struc(n)%useens.eq.0) then 
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1164,7 +1179,7 @@ contains
                tmp_real,HYMAP2_routing_struc(n)%rivhgt(:,1))  
        else
           do m=1,LIS_rc%nensem(n)
-             call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+             call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                   1,HYMAP2_routing_struc(n)%nseqall,&
                   HYMAP2_routing_struc(n)%imis,&
                   HYMAP2_routing_struc(n)%seqx,&
@@ -1178,7 +1193,7 @@ contains
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
        if(HYMAP2_routing_struc(n)%useens.eq.0) then 
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1186,7 +1201,7 @@ contains
                tmp_real,HYMAP2_routing_struc(n)%rivman(:,1))
        else
           do m=1,LIS_rc%nensem(n)
-             call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+             call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                   1,HYMAP2_routing_struc(n)%nseqall,&
                   HYMAP2_routing_struc(n)%imis,&
                   HYMAP2_routing_struc(n)%seqx,&
@@ -1200,7 +1215,7 @@ contains
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real(ctitle,n, HYMAP2_routing_struc(n)%nz,&
             tmp_real_nz)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             HYMAP2_routing_struc(n)%nz,&
             HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
@@ -1212,7 +1227,7 @@ contains
     ctitle = 'HYMAP_floodplain_roughness'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1224,7 +1239,7 @@ contains
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
        where(tmp_real<0)tmp_real=0
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1235,7 +1250,7 @@ contains
     ctitle = 'HYMAP_grid_distance'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1247,7 +1262,7 @@ contains
     ctitle = 'HYMAP_grid_area'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1258,7 +1273,7 @@ contains
     ctitle = 'HYMAP_runoff_time_delay'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1271,7 +1286,7 @@ contains
     ctitle = 'HYMAP_runoff_time_delay_multiplier'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1282,7 +1297,7 @@ contains
     ctitle = 'HYMAP_baseflow_time_delay'
 !    do n=1, LIS_rc%nnest
        call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-       call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+       call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
             1,HYMAP2_routing_struc(n)%nseqall,&
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%seqx,&
@@ -1299,7 +1314,7 @@ contains
 !    do n=1, LIS_rc%nnest
        if(HYMAP2_routing_struc(n)%dwiflag==1)then
           call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1315,7 +1330,7 @@ contains
 !    do n=1, LIS_rc%nnest
        if(HYMAP2_routing_struc(n)%dwiflag==1)then
           call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1333,7 +1348,7 @@ contains
        !if(HYMAP2_routing_struc(n)%flowtype==0)then
        if(HYMAP2_routing_struc(n)%flowtype==0.or.HYMAP2_routing_struc(n)%flowtype==4)then
           call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -1349,7 +1364,7 @@ contains
 !    do n=1, LIS_rc%nnest
        if(HYMAP2_routing_struc(n)%flowtype==4)then
           call HYMAP2_read_param_real_2d(ctitle,n,tmp_real)
-          call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),&
+          call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
                1,HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,&
                HYMAP2_routing_struc(n)%seqx,&
@@ -2170,7 +2185,7 @@ contains
     character(*), intent(in)    :: ctitle
     integer,      intent(in)    :: z
     integer,      intent(in)    :: n 
-    real,         intent(inout) :: array(LIS_rc%lnc(n),LIS_rc%lnr(n),z)
+    real,         intent(inout) :: array(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),z)
     integer                     :: ftn 
     logical                     :: file_exists
     integer                     :: status
@@ -2193,12 +2208,12 @@ contains
             ' in read_param_real in HYMAP2_routingMod')
        
        call LIS_verify(nf90_get_var(ftn,varid, array,&
-            start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
-            LIS_nss_halo_ind(n,LIS_localPet+1),1/), &
-            count=(/(LIS_ewe_halo_ind(n,LIS_localPet+1)-&
-            LIS_ews_halo_ind(n,LIS_localPet+1)+1),&
-            (LIS_nse_halo_ind(n,LIS_localPet+1)-&
-           LIS_nss_halo_ind(n,LIS_localPet+1)+1),z/)),&
+            start=(/LIS_ews_ind(n,LIS_localPet+1),&
+            LIS_nss_ind(n,LIS_localPet+1),1/), &
+            count=(/(LIS_ewe_ind(n,LIS_localPet+1)-&
+            LIS_ews_ind(n,LIS_localPet+1)+1),&
+            (LIS_nse_ind(n,LIS_localPet+1)-&
+           LIS_nss_ind(n,LIS_localPet+1)+1),z/)),&
            'nf90_get_var failed for '//trim(ctitle)//&
             ' in read_param_real in HYMAP2_routingMod')
        
@@ -2234,7 +2249,7 @@ contains
     implicit none	  
     character(*), intent(in)    :: ctitle
     integer,      intent(in)    :: n 
-    real,         intent(inout) :: array(LIS_rc%lnc(n),LIS_rc%lnr(n))
+    real,         intent(inout) :: array(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n))
     integer                     :: ftn 
     logical                     :: file_exists
     integer                     :: status
@@ -2255,12 +2270,12 @@ contains
             ' in read_param_real in HYMAP2_routingMod')
        
        call LIS_verify(nf90_get_var(ftn,varid, array,&
-            start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
-            LIS_nss_halo_ind(n,LIS_localPet+1)/), &
-            count=(/(LIS_ewe_halo_ind(n,LIS_localPet+1)-&
-            LIS_ews_halo_ind(n,LIS_localPet+1)+1),&
-            (LIS_nse_halo_ind(n,LIS_localPet+1)-&
-           LIS_nss_halo_ind(n,LIS_localPet+1)+1)/)),&
+            start=(/LIS_ews_ind(n,LIS_localPet+1),&
+            LIS_nss_ind(n,LIS_localPet+1)/), &
+            count=(/(LIS_ewe_ind(n,LIS_localPet+1)-&
+            LIS_ews_ind(n,LIS_localPet+1)+1),&
+            (LIS_nse_ind(n,LIS_localPet+1)-&
+           LIS_nss_ind(n,LIS_localPet+1)+1)/)),&
            'nf90_get_var failed for '//trim(ctitle)//&
             ' in read_param_real in HYMAP2_routingMod')
        
@@ -2289,7 +2304,7 @@ contains
     character(*), intent(in)    :: ctitle
     integer,      intent(in)    :: z
     integer,      intent(in)    :: n 
-    integer,      intent(inout) :: array(LIS_rc%lnc(n),LIS_rc%lnr(n),z)
+    integer,      intent(inout) :: array(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),z)
     integer                     :: ftn 
     logical                     :: file_exists
     integer                     :: status
@@ -2311,12 +2326,12 @@ contains
             ' in read_param_int in HYMAP2_routingMod')
        
        call LIS_verify(nf90_get_var(ftn,varid, array,&
-            start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
-            LIS_nss_halo_ind(n,LIS_localPet+1),1/), &
-            count=(/(LIS_ewe_halo_ind(n,LIS_localPet+1)-&
-            LIS_ews_halo_ind(n,LIS_localPet+1)+1),&
-            (LIS_nse_halo_ind(n,LIS_localPet+1)-&
-           LIS_nss_halo_ind(n,LIS_localPet+1)+1),z/)),&
+            start=(/LIS_ews_ind(n,LIS_localPet+1),&
+            LIS_nss_ind(n,LIS_localPet+1),1/), &
+            count=(/(LIS_ewe_ind(n,LIS_localPet+1)-&
+            LIS_ews_ind(n,LIS_localPet+1)+1),&
+            (LIS_nse_ind(n,LIS_localPet+1)-&
+           LIS_nss_ind(n,LIS_localPet+1)+1),z/)),&
            'nf90_get_var failed for '//trim(ctitle)//&
             ' in read_param_int in HYMAP2_routingMod')
        
@@ -2333,46 +2348,46 @@ contains
   end subroutine HYMAP2_read_param_int
 
   subroutine HYMAP2_read_param_int_2d(ctitle,n,array)
-    
+       
     !USES: 
     use LIS_coreMod
     use LIS_logMod
 #if (defined USE_NETCDF3 || defined USE_NETCDF4)
     use netcdf
 #endif
-    
-    implicit none	  
+       
+    implicit none         
     character(*), intent(in)    :: ctitle
-    integer,      intent(in)    :: n 
-    integer,      intent(inout) :: array(LIS_rc%lnc(n),LIS_rc%lnr(n))
-    integer                     :: ftn 
+    integer,      intent(in)    :: n
+    integer,      intent(inout) :: array(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n))
+    integer                     :: ftn
     logical                     :: file_exists
     integer                     :: status
     integer                     :: c,r
     character*100               :: cfile
     integer                     :: varid
-
+            
 #if (defined USE_NETCDF3 || defined USE_NETCDF4)
-
+            
     inquire(file=LIS_rc%paramfile(n),exist=file_exists)
+            
+    if(file_exists) then
     
-    if(file_exists) then 
-
        call LIS_verify(nf90_open(path=LIS_rc%paramfile(n),&
             mode=NF90_NOWRITE, ncid = ftn), &
             'nf90_open failed in read_param_int in HYMAP2_routingMod')
        call LIS_verify(nf90_inq_varid(ftn,trim(ctitle),varid), &
             'nf90_inq_varid failed for '//trim(ctitle)//&
             ' in read_param_int in HYMAP2_routingMod')
-       
-
+              
+              
        call LIS_verify(nf90_get_var(ftn,varid, array,&
-            start=(/LIS_ews_halo_ind(n,LIS_localPet+1),&
-            LIS_nss_halo_ind(n,LIS_localPet+1)/), &
-            count=(/(LIS_ewe_halo_ind(n,LIS_localPet+1)-&
-            LIS_ews_halo_ind(n,LIS_localPet+1)+1),&
-            (LIS_nse_halo_ind(n,LIS_localPet+1)-&
-           LIS_nss_halo_ind(n,LIS_localPet+1)+1)/)),&
+            start=(/LIS_ews_ind(n,LIS_localPet+1),&
+            LIS_nss_ind(n,LIS_localPet+1)/), &
+            count=(/(LIS_ewe_ind(n,LIS_localPet+1)-&
+            LIS_ews_ind(n,LIS_localPet+1)+1),&
+            (LIS_nse_ind(n,LIS_localPet+1)-&
+           LIS_nss_ind(n,LIS_localPet+1)+1)/)),&
            'nf90_get_var failed for '//trim(ctitle)//&
             ' in read_param_int in HYMAP2_routingMod')
 
@@ -2384,9 +2399,10 @@ contains
        write(LIS_logunit,*) '[ERR] failed in read_param_int in HYMAP2_routingMod'
        call LIS_endrun()
     endif
-    
+
 #endif
   end subroutine HYMAP2_read_param_int_2d
+
 
   subroutine HYMAP2_read_param_int_2d_global(ctitle,n,array)
     

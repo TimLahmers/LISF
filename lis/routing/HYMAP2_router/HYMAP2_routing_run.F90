@@ -573,7 +573,10 @@ subroutine HYMAP2_routing_run(n)
            call LIS_tile2grid(n,tmpr,surface_runoff_t)
            call LIS_tile2grid(n,tmpb,baseflow_t)
            call LIS_tile2grid(n,tmpq,qrf_t)
-           
+          
+           ! Need new tile2grid w/reduced grid
+           ! Grid2vector w/reduced grid
+ 
            call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
                 HYMAP2_routing_struc(n)%imis,&
@@ -617,6 +620,7 @@ subroutine HYMAP2_routing_run(n)
         !print *, "Max. sfc runoff pt:     ",maxloc(surface_runoff_t)
         !print *, "Max. sub-sfc runoff pt: ",maxloc(baseflow_t) 
 
+        ! Update w/reduced grid
         call HYMAP2_model(n,real(HYMAP2_routing_struc(n)%imis),&
              LIS_rc%lnc(n),&
              LIS_rc%lnr(n),&

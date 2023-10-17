@@ -1135,7 +1135,7 @@ subroutine NoahMP401_main(n)
             
             wtddt = LIS_rc%ts/60.0 ! time step in minutes? 
 
-            print *, "Max. River Depth: ",maxval(noahmp401_struc(n)%noahmp401(:)%rivdph) 
+            !print *, "Max. River Depth: ",maxval(noahmp401_struc(n)%noahmp401(:)%rivdph) 
 
             if(NOAHMP401_struc(n)%chan_exfil_opt .eq. 1) then
                 chanopt = 1

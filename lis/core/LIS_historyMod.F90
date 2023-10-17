@@ -178,6 +178,8 @@ module LIS_historyMod
      module procedure grid2tile_ens
   end interface
   
+!TML Add new LIS_grid2tile for going between HyMAP (w/o halo) and LIS (w/halo)
+
 !BOP
 ! 
 ! !ROUTINE: LIS_writevar_reduced_tilespace

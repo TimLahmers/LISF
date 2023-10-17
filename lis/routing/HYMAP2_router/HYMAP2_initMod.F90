@@ -191,9 +191,13 @@ contains
    do i=1,nseqall
       if(outlet(i)==0) then 
          ix = seqx(i)
+         !write(LIS_logunit,*) "ix: ",ix
          iy = seqy(i)
+         !write(LIS_logunit,*) "iy: ",iy
          jx = nextx(ix,iy)
+         !write(LIS_logunit,*) "jx: ",jx
          jy = nexty(ix,iy)
+         !write(LIS_logunit,*) "jy: ",jy
          next(i) = sindex(jx,jy)
       endif
    enddo
@@ -254,7 +258,12 @@ contains
         hgtpre=0.
         !ag (12Feb2020)
         !wthinc=areamat(iseq)/rivlen(iseq)*0.1
-        wthinc=(areamat(iseq)-rivare(iseq))/rivlen(iseq)/nz
+        if (rivlen(iseq) == 0.0) then  !TML deal with zero river-length; byproduct of halos??
+            wthinc = 0.0
+            write(LIS_logunit,*) '[WARN] set wthinc = 0.0; iseq =',iseq
+        else
+            wthinc=(areamat(iseq)-rivare(iseq))/rivlen(iseq)/nz
+        endif
         do i=1,nz
            stonow=rivlen(iseq)*(rivwth(iseq)+wthinc*(real(i)-0.5))*(fldhgt(iseq,i)-hgtpre)
            fldstomax(iseq,i)=stopre+stonow
