@@ -244,6 +244,9 @@ subroutine NoahMP401_main(n)
     real                 :: tmp_infxs1rt           ! extra output for WRF-HYDRO [m]
     real                 :: tmp_soldrain1rt        ! extra output for WRF-HYDRO [m]
 
+    ! TML: Debugging term to print model variables if set to 1.
+    integer                 :: tmp_printdebug              ! print model output if true
+
         !ag (05Jan2021)
     real                 :: tmp_rivsto
     real                 :: tmp_fldsto
@@ -279,6 +282,15 @@ subroutine NoahMP401_main(n)
             col = LIS_surface(n, LIS_rc%lsm_index)%tile(t)%col
             lat = LIS_domain(n)%grid(LIS_domain(n)%gindex(col, row))%lat
             lon = LIS_domain(n)%grid(LIS_domain(n)%gindex(col, row))%lon
+
+            ! TML print statement for model debugging.
+            tmp_printdebug = 0
+            if (row .eq. 12) then
+                if (col .eq. 25) then
+                    tmp_printdebug = 1
+                    !print *, "PRINTED DEBUG VARIABLES ON"
+                endif
+            endif
 
             ! retrieve forcing data from NOAHMP401_struc(n)%noahmp401(t) and assign to local variables
             ! tair: air temperature
@@ -720,7 +732,8 @@ subroutine NoahMP401_main(n)
                                    NOAHMP401_struc(n)%noahmp401(t)%param, & ! out   - relative soil moisture [-]
                                    tmp_sfcheadrt         , & 
                                    tmp_infxs1rt          , &
-                                   tmp_soldrain1rt    ) ! out   - extra output for WRF-HYDRO [m]
+                                   tmp_soldrain1rt , & !    ) ! out   - extra output for WRF-HYDRO [m]
+                                   tmp_printdebug     ) ! TML: Added debug print statement
 
             ! save state variables from local variables to global variables
             NOAHMP401_struc(n)%noahmp401(t)%sfcrunoff       = tmp_sfcrunoff
