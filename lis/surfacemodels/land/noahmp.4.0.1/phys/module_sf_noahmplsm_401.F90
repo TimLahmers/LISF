@@ -360,7 +360,7 @@ contains
 !
 !== begin noahmp_sflx ==============================================================================
 
-  SUBROUTINE NOAHMP_SFLX (parameters, &
+  SUBROUTINE NOAHMP_SFLX (parameters, printdebug, &
                    ILOC    , JLOC    , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
                    DT      , DX      , DZ8W    , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
                    SHDFAC  , SHDMAX  , VEGTYP  , ICE     , IST     , CROPTYPE, & ! IN : Vegetation/Soil characteristics
@@ -409,6 +409,7 @@ contains
 ! input
   type (noahmp_parameters), INTENT(IN) :: parameters
 
+  INTEGER,                         INTENT(IN) :: PRINTDEBUG
   INTEGER                        , INTENT(IN)    :: ICE    !ice (ice = 1)
   INTEGER                        , INTENT(IN)    :: IST    !surface type 1->soil; 2->lake
   INTEGER                        , INTENT(IN)    :: VEGTYP !vegetation type 
@@ -672,6 +673,13 @@ contains
   PAHB = 0.0
   PAH  = 0.0
 
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'START SFLX VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
+
 ! --------------------------------------------------------------------------------------------------
 ! re-process atmospheric forcing
 
@@ -707,10 +715,40 @@ contains
      END DO
      END IF
 
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'START PHENOLOGY VARIABLES: '
+     !print*, 'LAI =',LAI
+     !print*, 'FVEG = ',FVEG
+     !print*, 'SMC-1 = ',SMC(1)
+
+     print*, 'PHENOLOGY INPUT VARIABLES: '
+     print*, 'VEGTYP =',VEGTYP
+     print*, 'croptype =',croptype
+     print*, 'SNOWH =',SNOWH
+     print*, 'TV =',TV
+     print*, 'LAT =',LAT
+     print*, 'YEARLEN =',YEARLEN
+     print*, 'JULIAN =',JULIAN
+     print*, 'LAI =',LAI
+     print*, 'SAI =',SAI
+     print*, 'TROOT =',TROOT
+     print*, 'ELAI =',ELAI
+     print*, 'ESAI =',ESAI
+     print*, 'IGS =',IGS
+     print*, 'PGS =',PGS
+   endif
+
 ! vegetation phenology
 
      CALL PHENOLOGY (parameters,VEGTYP ,croptype, SNOWH  , TV     , LAT   , YEARLEN , JULIAN , & !in
                      LAI    , SAI    , TROOT  , ELAI    , ESAI   ,IGS, PGS)
+
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'UPDATE FVEG VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
 
 !input GVF should be consistent with LAI
      IF(DVEG == 1 .or. DVEG == 6 .or. DVEG == 7) THEN
@@ -732,6 +770,13 @@ contains
      ENDIF
      IF(parameters%urban_flag .OR. VEGTYP == parameters%ISBARREN) FVEG = 0.0
      IF(ELAI+ESAI == 0.0) FVEG = 0.0
+
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'START HEAT AND ENERGY VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
 
     CALL PRECIP_HEAT(parameters,ILOC   ,JLOC   ,VEGTYP ,DT     ,UU     ,VV     , & !in
                      ELAI   ,ESAI   ,FVEG   ,IST    ,                 & !in
@@ -781,6 +826,13 @@ contains
 
 ! compute water budgets (water storages, ET components, and runoff)
 
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'START WATER VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
+
      CALL WATER (parameters,VEGTYP ,NSNOW  ,NSOIL  ,IMELT  ,DT     ,UU     , & !in
                  VV     ,FCEV   ,FCTR   ,QPRECC ,QPRECL ,ELAI   , & !in
                  ESAI   ,SFCTMP ,QVAP   ,QDEW   ,ZSOIL  ,BTRANI , & !in
@@ -810,6 +862,13 @@ contains
      crop_active = .true.
      dveg_active = .false.
    ENDIF
+
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'START CARBON AND CROP VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
 
    IF (dveg_active) THEN
      CALL CARBON (parameters,NSNOW  ,NSOIL  ,VEGTYP ,DT     ,ZSOIL  , & !in
@@ -861,6 +920,13 @@ contains
 ! David Mocko - Added RELSMC after Noah-3.X code
     RELSMC(:) = (SMC(:)               - parameters%SMCWLT(:)) /        &
                 (parameters%SMCMAX(:) - parameters%SMCWLT(:))
+
+   if (PRINTDEBUG .eq. 1) then
+     print*, 'FINISH SFLX VARIABLES: '
+     print*, 'LAI =',LAI
+     print*, 'FVEG = ',FVEG
+     print*, 'SMC-1 = ',SMC(1)
+   endif
 
   END SUBROUTINE NOAHMP_SFLX
 
@@ -3669,6 +3735,15 @@ ENDIF   ! CROPTYPE == 0
           call wrf_message ( message )
           write (message, *) 'SNOWH =',SNOWH
           call wrf_message ( message )
+          write (message, *) 'VEG =',VEG
+          call wrf_message ( message )
+          write (message, *) 'CWPVT =',parameters%cwpvt
+          call wrf_message ( message )
+          write (message, *) 'MP =',parameters%mp
+          call wrf_message ( message )
+          write (message, *) 'REFKDT =',parameters%refkdt
+          call wrf_message ( message )
+
           call wrf_error_fatal ( "CRITICAL PROBLEM IN MODULE_SF_NOAHMPLSM_401:VEGEFLUX" )
         END IF
 

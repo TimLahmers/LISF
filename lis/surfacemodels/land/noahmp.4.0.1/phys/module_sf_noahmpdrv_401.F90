@@ -56,7 +56,7 @@ CONTAINS
 #endif
                ids,ide,  jds,jde,  kds,kde,                    &
                ims,ime,  jms,jme,  kms,kme,                    &
-               its,ite,  jts,jte,  kts,kte,                    &
+               its,ite,  jts,jte,  kts,kte, PRINTDEBUG,                    &
                MP_RAINC, MP_RAINNC, MP_SHCV, MP_SNOW, MP_GRAUP, MP_HAIL     )
 !----------------------------------------------------------------
     USE MODULE_SF_NOAHMPLSM_401
@@ -74,6 +74,7 @@ CONTAINS
 
 ! Added LIS undefined value as an input - David Mocko
     REAL,    INTENT(IN   ) ::  LIS_undef_value
+    INTEGER,                                         INTENT(IN   ) ::  PRINTDEBUG ! TML: Debugging Flag
     INTEGER,                                         INTENT(IN   ) ::  ITIMESTEP ! timestep number
     INTEGER,                                         INTENT(IN   ) ::  YR        ! 4-digit year
     REAL,                                            INTENT(IN   ) ::  JULIAN    ! Julian day
@@ -577,6 +578,17 @@ CONTAINS
        PSFC   = P8W3D(I,1,J)                          ! surface pressure defined a full levels [Pa]
        PRCP   = PRECIP_IN (I,J) / DT                  ! timestep total precip rate (glacier) [mm/s]! MB: v3.7
 
+       if (PRINTDEBUG .eq. 1) then
+       print*, 'START VARIABLES: '
+       print*, 'XLAT = ', XLAT(I,J)
+       print*, 'XLON = ',XLONG(I,J)
+       print*, 'SWDN = ',SWDN
+       print*, 'IVGTYP = ',VEGTYP
+       print*, 'PLAI = ',PLAI
+       print*, 'FVEG = ',FVEG
+       print*, 'SMC-1 = ',SMC(1)
+       endif
+
        CROPTYPE = 0
        IF (IOPT_CROP > 0 .AND. VEGTYP == ISCROP_TABLE) CROPTYPE = DEFAULT_CROP_TABLE ! default croptype is generic dynamic vegetation crop
        IF (IOPT_CROP > 0 .AND. CROPCAT(I,J) > 0) THEN
@@ -877,7 +889,7 @@ CONTAINS
         ELSE
 
          ICE=0                              ! Neither sea ice or land ice.
-         CALL NOAHMP_SFLX (parameters, &
+         CALL NOAHMP_SFLX (parameters, printdebug, &
             I       , J       , LAT     , YEARLEN , JULIAN  , COSZ    , & ! IN : Time/Space-related
             DT      , DX      , DZ8W1D  , NSOIL   , ZSOIL   , NSNOW   , & ! IN : Model configuration 
             FVEG    , FVGMAX  , VEGTYP  , ICE     , IST     , CROPTYPE, & ! IN : Vegetation/Soil characteristics
@@ -921,6 +933,17 @@ CONTAINS
             LH       (I,J)                = FCEV + FGEV + FCTR
 
    ENDIF ! glacial split ends 
+
+       if (PRINTDEBUG .eq. 1) then
+       print*, 'END VARIABLES: '
+       print*, 'XLAT = ', XLAT(I,J)
+       print*, 'XLON = ',XLONG(I,J)
+       print*, 'SWDN = ',SWDN
+       print*, 'IVGTYP = ',VEGTYP
+       print*, 'PLAI = ',PLAI
+       print*, 'FVEG = ',FVEG
+       print*, 'SMC-1 = ',SMC(1)
+       endif
 
 #ifdef WRF_HYDRO
 !AD_CHANGE: Glacier cells can produce small negative subsurface runoff for mass balance.
