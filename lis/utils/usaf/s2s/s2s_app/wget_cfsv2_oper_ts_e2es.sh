@@ -57,10 +57,11 @@ neighb_days(){
 }
 
 print_message(){
-    echo "Note: if all recommended substitutes are also not available, you could try a different forecast hour from any of above dates." >> $CFSV2_LOG
+    echo "Note: If all recommended substitutes are also not available, you could try a different forecast hour from any of above dates." >> $CFSV2_LOG
     echo ""  >> $CFSV2_LOG
 }
 
+ret_code_pipe=$(mktemp)
 main_loop() {
     # Initial forecast dates:
     for prevmondays in ${day1} ${day2} ${day3}; do
@@ -123,7 +124,8 @@ main_loop() {
 	    done
 	done
 	cd ../
-    done    
+    done
+    echo $ret_code > $ret_code_pipe
 }
 # ________________________________________________________________
 # Main script
@@ -146,8 +148,8 @@ do
 	   echo "---------------------------------"
 	   echo "  YEAR:        forecast start year"
 	   echo "  MONTH:       forecast start month [1 to 12]"
-	   echo "  CONFIG_FILE: E2E main config file for forecast with the full path of the E2E directory"
-	   echo "  DOWNLOAD: Download CFSv2 forcings (Y/N). If N only the file check will be perdormed."
+	   echo "  CONFIG_FILE: E2ES main config file for forecast with the full path of the E2ES directory"
+	   echo "  DOWNLOAD: Download CFSv2 forcings (Y/N). If N only the file check will be performed."
 	   exit 1 
 	   ;;	 	   
   esac
@@ -231,7 +233,7 @@ ulimit -s unlimited
   /bin/rm -f $CFSV2_LOG
 
 echo " #####################################################################################" >> $CFSV2_LOG
-echo "                                  MISSING/CORRUPTED CFSv2 FILES                       " >> $CFSV2_LOG
+echo "                                  MISSING/INCOMPLETE CFSV2 FILES                      " >> $CFSV2_LOG
 echo " #####################################################################################" >> $CFSV2_LOG
 echo "                         " >> $CFSV2_LOG
 echo "  A replacement file is required for each missing or corrupted file. CFSv2 replacement files are saved in:" >> $CFSV2_LOG
@@ -367,7 +369,7 @@ fi
 echo "Previous mon,days 1-2-3 :: "${prevmon}", "${day1}"-"${day2}"-"${day3}
 echo " "
 echo "=================================================================================================="
-echo " CFSv2 file checker is running  to ensure all forcings files are available and not corrupted......"
+echo " CFSv2 file checker is running to ensure all forcings files are available and not corrupted......"
 echo "=================================================================================================="
 
 # Run the main loop
@@ -381,9 +383,11 @@ while kill -0 $! >/dev/null 2>&1; do
         sleep 0.1
     done
 done
+ret_code=$(cat $ret_code_pipe)
+/bin/rm $ret_code_pipe
 
 if [ $ret_code -gt 0 ]; then
-    echo "*** Missing or Corrupted CFSv2 forcing files were found ***."
+    echo "*** Missing or Incomplete CFSv2 forcing files were found ***."
     echo "Please follow the instructions in:"
     echo $CFSV2_LOG
     print_message
@@ -397,13 +401,8 @@ else
     echo "**************************************************************"
     
 fi  
-echo " -- Done downloading CFSv2 Reforecast files -- "
+echo " -- Done checking (and/or downloading) CFSv2 Forecast files -- "
+
 exit $ret_code
 # ____________________________
 
-
-
-#  https://oceanobservatories.org/knowledgebase/how-can-i-download-all-files-at-once-from-a-data-request/
-#  url=https://www.ncei.noaa.gov/thredds/catalog/model-cfs_refor_6h_9m_flx/2007/200711/20071127/catalog.html
-#  wget -r -l2 -nd -nc -np -e robots=off -A.grb2 --no-check-certificate  ${url}
-#
