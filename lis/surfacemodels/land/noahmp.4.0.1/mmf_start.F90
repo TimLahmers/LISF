@@ -2,7 +2,8 @@ subroutine mmf_start(n)
     use LIS_coreMod
     use NoahMP401_lsmMod
     use module_sf_noahmpdrv_401
-    use LIS_historyMod, only: LIS_gather_masterproc_2d_local_to_global, &
+    use LIS_historyMod, only: LIS_gather_2d_local_to_global, &
+                              LIS_gather_masterproc_2d_local_to_global, &
                               LIS_scatter_global_to_local_grid
     use LIS_mpiMod
     use LIS_logMod, only     : LIS_logunit
@@ -44,6 +45,8 @@ subroutine mmf_start(n)
     allocate(rechxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(cwidth(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(clength(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+    !allocate(cwidth(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max-2*LIS_rc%halox, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max-2*LIS_rc%haloy))
+    !allocate(clength(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max-2*LIS_rc%halox, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max-2*LIS_rc%haloy))
     allocate(qslatxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qrfsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qspringsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
@@ -89,6 +92,16 @@ subroutine mmf_start(n)
             pexp(col,row)      = 1.0
         enddo
     enddo
+
+    ! HyMAP parameters do not have halos...
+    !do row=NOAHMP401_struc(n)%row_min, NOAHMP401_struc(n)%row_max-2*LIS_rc%haloy
+    !    do col=NOAHMP401_struc(n)%col_min, NOAHMP401_struc(n)%col_max-2*LIS_rc%halox
+    !        ridx = row - NOAHMP401_struc(n)%row_min + 1
+    !        cidx = col - NOAHMP401_struc(n)%col_min + 1
+    !        cwidth(col,row)      = NOAHMP401_struc(n)%cwidth(cidx, ridx)
+    !        clength(col,row)      = NOAHMP401_struc(n)%clength(cidx, ridx)
+    !    enddo
+    !enddo
 
     !print*, 'mmf_start INIT VARIABLES: '
     !print*, 'SMC-1 = ',smois(18,1,12)
@@ -169,7 +182,7 @@ subroutine mmf_start(n)
     call LIS_gather_masterproc_2d_local_to_global(n, smcwtdxy, gsmcwtdxy)
     call LIS_gather_masterproc_2d_local_to_global(n, deeprechxy, gdeeprechxy)
     call LIS_gather_masterproc_2d_local_to_global(n, rechxy, grechxy)
-    call LIS_gather_masterproc_2d_local_to_global(n, cwidth, gcwidth)
+    call LIS_gather_masterproc_2d_local_to_global(n, cwidth, gcwidth)   ! Use version without halo for HyMAP parm.
     call LIS_gather_masterproc_2d_local_to_global(n, clength, gclength)
     call LIS_gather_masterproc_2d_local_to_global(n, qslatxy, gqslatxy)
     call LIS_gather_masterproc_2d_local_to_global(n, qrfsxy, gqrfsxy)
@@ -218,7 +231,7 @@ subroutine mmf_start(n)
     call  groundwater_init (noahmp401_struc(n)%nsoil,  & !nsoil ,
                             noahmp401_struc(n)%sldpth, & !dzs,
                             chanopt, gisltyp, givgtyp, wtddt ,    &
-                            gfdepth, gtopo, griverbed, geqwtd, grivercond, gcwidth, gclength, &
+                            gfdepth, gtopo, griverbed, geqwtd, cwidth, clength, rivercond, &
                             gpexp, garea, gwtd, gsmois, gsh2o, gsmoiseq, gsmcwtdxy, &
                             gdeeprechxy, grechxy, gqslatxy, gqrfsxy, gqspringsxy, grechclim, &
                             1,             & !ids,
