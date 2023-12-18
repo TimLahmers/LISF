@@ -572,8 +572,10 @@ subroutine HYMAP2_routing_run(n)
            !temporary solution  
            call LIS_tile2grid(n,tmpr,surface_runoff_t)
            call LIS_tile2grid(n,tmpb,baseflow_t)
-           call LIS_tile2grid(n,tmpq,qrf_t)
-          
+           if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
+               call LIS_tile2grid(n,tmpq,qrf_t)
+           endif          
+
            ! Need new tile2grid w/reduced grid
            ! Grid2vector w/reduced grid
  
@@ -587,11 +589,13 @@ subroutine HYMAP2_routing_run(n)
                 HYMAP2_routing_struc(n)%imis,&
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)
-           call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
-                HYMAP2_routing_struc(n)%nseqall,&
-                HYMAP2_routing_struc(n)%imis,&
-                HYMAP2_routing_struc(n)%seqx,&
-                HYMAP2_routing_struc(n)%seqy,tmpq,qrf)
+           if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
+               call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+                    HYMAP2_routing_struc(n)%nseqall,&
+                    HYMAP2_routing_struc(n)%imis,&
+                    HYMAP2_routing_struc(n)%seqx,&
+                    HYMAP2_routing_struc(n)%seqy,tmpq,qrf)
+           endif
         else
 
            call readrunoffdata(trim(LIS_rc%runoffdatasource)//char(0),&
