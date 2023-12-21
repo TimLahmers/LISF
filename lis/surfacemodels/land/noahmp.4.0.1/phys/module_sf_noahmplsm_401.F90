@@ -838,7 +838,7 @@ contains
                  ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , & !in
                  NSNOW  ,IST    ,ERRWAT ,ILOC   , JLOC  ,FVEG   , &
                  SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                 PAHV   ,PAHG   ,PAHB   )   !in ( Except ERRWAT, which is out )
+                 PAHV   ,PAHG   ,PAHB   ,RECH   ,DEEPRECH)   !in ( Except ERRWAT, which is out )
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
@@ -1329,7 +1329,7 @@ ENDIF   ! CROPTYPE == 0
                     ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , &
                     NSNOW  ,IST    ,ERRWAT, ILOC   ,JLOC   ,FVEG   , &
                     SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                    PAHV   ,PAHG   ,PAHB   )
+                    PAHV   ,PAHG   ,PAHB   ,RECH   ,DEEPRECH)
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1372,6 +1372,8 @@ ENDIF   ! CROPTYPE == 0
   REAL                           , INTENT(IN) :: WA     !water storage in aquifer [mm]
   REAL                           , INTENT(IN) :: DT     !time step [sec]
   REAL                           , INTENT(IN) :: BEG_WB !water storage at begin of a timesetp [mm]
+  REAL                           , INTENT(IN) :: RECH
+  REAL                           , INTENT(IN) :: DEEPRECH
   REAL                           , INTENT(OUT) :: ERRWAT !error in water balance [mm/timestep]
   REAL, INTENT(IN)   :: PAH     !precipitation advected heat - total (W/m2)
   REAL, INTENT(IN)   :: PAHV    !precipitation advected heat - total (W/m2)
@@ -1472,6 +1474,7 @@ ENDIF   ! CROPTYPE == 0
            print *,'CANICE = ',CANICE
            print *,'SNEQV = ',SNEQV
            print *,'WA = ',WA
+           print *,'ZWT = ',ZWT  
            print *,'SMC(1) = ',SMC(1) * DZSNSO(1) * (-1000.)
            print *,'SMC(2) = ',SMC(2) * DZSNSO(2) * (-1000.)
            print *,'SMC(3) = ',SMC(3) * DZSNSO(3) * (-1000.)
@@ -1486,7 +1489,9 @@ ENDIF   ! CROPTYPE == 0
            print *,'EDIR = ',EDIR*DT
            print *,'RUNSRF = ',RUNSRF*DT
            print *,'RUNSUB = ',RUNSUB*DT
-           call wrf_error_fatal("Water budget problem in NOAHMP LSM")
+           print *,'RECH = ',RECH*1000.
+           print *,'DEEPRECH = ',DEEPRECH*1000.
+!           call wrf_error_fatal("Water budget problem in NOAHMP LSM")
         END IF
 #endif
    ELSE                 !KWM
@@ -6455,11 +6460,12 @@ ENDIF   ! CROPTYPE == 0
 
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
+  REAL                                           :: DPH     !MMF Depth, assume 200m
+
   !ag (05Jan2021)
   REAL                             , INTENT(IN)   :: rivsto
   REAL                             , INTENT(IN)   :: fldsto
   REAL                             , INTENT(IN)   :: fldfrc
-
 
 #ifdef WRF_HYDRO
   REAL                           , INTENT(INOUT)    :: sfcheadrt
@@ -6578,7 +6584,17 @@ ENDIF   ! CROPTYPE == 0
 
           SH2O(NSOIL) = SMC(NSOIL) - SICE(NSOIL)
           RUNSUB = RUNSUB + QDRAIN !it really comes from subroutine watertable, which is not called with the same frequency as the soil routines here
-          WA = 0.
+          !WA = 0.
+          !TML: Proposed Code Change
+          ! Update WA as function of WTD
+          ! At some point, WTD should be dependent upon WA, to enable change from DA...
+          CALL COMPUTEGWS (parameters ,NSOIL ,ZSOIL ,ZWT ,WT) 
+          DPH = 200. + ZSOIL(NSOIL)
+          IF (ZWT .LE. ZSOIL(NSOIL)) THEN  
+              WA = WT
+          ELSE 
+              WA = (DPH*parameters%SMCMAX(NSOIL))* 1.E3 
+          ENDIF
        ENDIF
 
     ENDIF
@@ -8533,6 +8549,7 @@ ENDIF   ! CROPTYPE == 0
   REAL                                        :: DZUP
   REAL                                        :: SMCEQDEEP
   REAL,  DIMENSION(       0:NSOIL)            :: ZSOIL0
+
 ! -------------------------------------------------------------
 
 
@@ -8635,6 +8652,78 @@ ELSEIF(IWTD.LT.NSOIL .AND. IWTD.LE.0) THEN
 END IF
 
 END  SUBROUTINE SHALLOWWATERTABLE
+
+!== begin shallowwatertable ========================================================================
+
+  SUBROUTINE COMPUTEGWS (parameters ,NSOIL ,ZSOIL ,ZWT ,WT) 
+! ----------------------------------------------------------------------
+! Computes water storage in aquifer (WT) for LIS w/MMF Groundwater Scheme
+! ----------------------------------------------------------------------
+  implicit none
+! ----------------------------------------------------------------------
+! input
+  type (noahmp_parameters), intent(in) :: parameters
+  INTEGER,                         INTENT(IN)    :: NSOIL   !no. of soil layers
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN)    :: ZSOIL   !depth of layer-bottom from soil surface
+  REAL,                            INTENT(IN) :: ZWT     !the depth to water table [m]
+
+! input/output
+  REAL,                            INTENT(INOUT) :: WT      !water storage in aquifer [mm]
+
+! local; MMF WT Calculation
+  INTEGER                                         :: IZ     
+  INTEGER                                         :: IWT     !layer index above water table layer
+  REAL                                            :: DPH     !MMF Depth, assume 200m
+  REAL, DIMENSION(       1:NSOIL)                 :: DZ      !Soil Layer Depth
+  REAL, DIMENSION(       1:NSOIL)                 :: WTLAYER !Groundwater in Soil Layer
+
+
+  !TML: Compute WT as a function ZWT; Martinez et al. (2016)
+  DPH = 200. + ZSOIL(NSOIL) ! 200m; ZSOIL is negative, subtract LSM from deep layer...
+                      
+  ! Case (1): WTD > Deepest Layer
+  IF (ZWT .GT. ZSOIL(NSOIL-1)) THEN
+      ! Derive layer-bottom depth in [mm]
+      ! KWM:  Derive layer thickness in mm
+      ! TML:  Adapted from SIMGM
+      DZ(1) = -ZSOIL(1)
+      DO IZ = 2, NSOIL
+          DZ(IZ)  = (ZSOIL(IZ - 1) - ZSOIL(IZ))
+      ENDDO   
+      
+      ! Find Layer with WTD
+      IWT = NSOIL-1
+      DO IZ = 1,NSOIL-1
+          IF(ZWT .GT. ZSOIL(IZ) ) THEN
+              IWT = IZ-1
+              EXIT
+          ENDIF
+      ENDDO   
+
+      ! Find Groundwater in Each Layer
+      WTLAYER(:) = 0.
+      DO IZ = 1,NSOIL
+          IF (IZ .LT. IWT) THEN
+              WTLAYER(IZ) = 0.
+          ELSEIF (IZ .EQ. IWT) THEN
+              WTLAYER(IZ) = (ZWT - ZSOIL(IZ))*parameters%SMCMAX(IWT)
+          ELSE
+              WTLAYER(IZ) = DZ(IZ)*parameters%SMCMAX(IWT)
+          ENDIF
+      ENDDO
+
+      ! SUM WT Components + Convert To mm
+      WT = (SUM(WTLAYER(1:NSOIL)) + DPH*parameters%SMCMAX(NSOIL))* 1.E3 ! assume porosity is constant for deep soil     
+  ELSEIF (ZWT .GT. ZSOIL(NSOIL)) THEN
+      ! SUM WA Components + Convert To mm
+      WT = (ZWT - ZSOIL(NSOIL))*parameters%SMCMAX(NSOIL) + &
+           DPH*parameters%SMCMAX(NSOIL)* 1.E3 ! assume porosity is constant for deep soil
+  ELSE
+      ! Only consider water below LSM; mm
+      WT = (ZWT + DPH - ZSOIL(NSOIL))*parameters%SMCMAX(NSOIL)* 1.E3
+  ENDIF
+
+END  SUBROUTINE COMPUTEGWS
 
 ! ==================================================================================================
 ! ********************* end of water subroutines ******************************************

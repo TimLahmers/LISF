@@ -172,6 +172,8 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
 !Total water flux to or from groundwater in the cell
              TOTWATER = QLAT(I,J) - QRF(I,J) + DEEPRECH(I,J)
 
+             !MMFFLUX = TOTWATER 
+
              SMC(1:NSOIL) = SMOIS(I,1:NSOIL,J)
              SH2O(1:NSOIL) = SH2OXY(I,1:NSOIL,J)
              SMCEQ(1:NSOIL) = SMOISEQ(I,1:NSOIL,J)
