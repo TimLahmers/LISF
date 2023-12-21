@@ -2,6 +2,7 @@ subroutine mmf_start(n)
     use LIS_coreMod
     use NoahMP401_lsmMod
     use module_sf_noahmpdrv_401
+    use module_sf_noahmplsm_401
     use LIS_historyMod, only: LIS_gather_masterproc_2d_local_to_global, &
                               LIS_scatter_global_to_local_grid
     use LIS_mpiMod
@@ -9,7 +10,8 @@ subroutine mmf_start(n)
     implicit none 
     integer :: i,j
     integer :: n, row, col, t, ridx, cidx, ierr
-    real :: wtddt 
+    real :: wtddt, ns, dph 
+    real, dimension(1:noahmp401_struc(n)%nsoil) :: zsoil
    ! SW, MMF 
     integer, allocatable,dimension(:,:) :: isltyp, ivgtyp
     !real, allocatable :: fdepth(:,:)
@@ -25,6 +27,14 @@ subroutine mmf_start(n)
     real, allocatable,dimension(:,:,:) :: gsmois, gsh2o, gsmoiseq
 #endif
     wtddt = int(LIS_rc%ts/60) ! in minutes? 
+
+
+    ! Given the soil layer thicknesses (in DZS), calculate the soil layer
+    ! depths from the surface (from groundwater_init).
+    zsoil(1) = -noahmp401_struc(n)%sldpth(1)          ! negative
+    do ns=2, noahmp401_struc(n)%nsoil
+        zsoil(ns) = zsoil(ns-1) - noahmp401_struc(n)%sldpth(ns)
+    end do
 
     allocate(isltyp(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(ivgtyp(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
@@ -354,6 +364,19 @@ subroutine mmf_start(n)
                 NOAHMP401_struc(n)%noahmp401(t)%qslat     = qslatxy(col,row) 
                 NOAHMP401_struc(n)%noahmp401(t)%qrfs      = qrfsxy(col,row) 
                 NOAHMP401_struc(n)%noahmp401(t)%qsprings  = qspringsxy(col,row)
+
+                ! Initialize GWS Variables
+                call computegws (NOAHMP401_struc(n)%noahmp401(t)%param       & !in 
+                                 ,noahmp401_struc(n)%nsoil                   & !in
+                                 ,zsoil ,NOAHMP401_struc(n)%noahmp401(t)%zwt & !in
+                                 ,NOAHMP401_struc(n)%noahmp401(t)%wt )         !inout
+                dph = 200. + zsoil(noahmp401_struc(n)%nsoil) 
+                if(NOAHMP401_struc(n)%noahmp401(t)%zwt.le.zsoil(noahmp401_struc(n)%nsoil))then
+                    NOAHMP401_struc(n)%noahmp401(t)%wa = NOAHMP401_struc(n)%noahmp401(t)%wt
+                else
+                    NOAHMP401_struc(n)%noahmp401(t)%wa = & 
+        (dph*NOAHMP401_struc(n)%noahmp401(t)%param%SMCMAX(noahmp401_struc(n)%nsoil))* 1.E3
+                endif 
             endif 
             NOAHMP401_struc(n)%rivercond(col, row)    = rivercond(col,row) !!! make a copy to the 2D paramter data structure 
             NOAHMP401_struc(n)%riverbed(col, row)     = riverbed(col,row)  !!! make a copy to the 2D paramter data structure 
