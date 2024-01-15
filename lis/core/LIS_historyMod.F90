@@ -391,6 +391,8 @@ module LIS_historyMod
      module procedure tile2grid_local_ens
      module procedure tile2grid_global_ens
      module procedure tile2grid_global_noens
+     module procedure tile2grid_local_red
+     module procedure tile2grid_local_ens_red
 ! 
 ! !DESCRIPTION:
 ! This interface provides routines for converting a tile
@@ -8457,6 +8459,112 @@ end subroutine writevar_grib2_withstats_real
 
   end subroutine tile2grid_global_noens
 
+!BOP
+! !ROUTINE: tile2grid_local_red
+! \label{tile2grid_local_red}
+!
+! !INTERFACE:
+  subroutine tile2grid_local_red(n,gvar,tvar,red_grid)
+! !USES:
+
+    implicit none
+! !ARGUMENTS:     
+    integer, intent(in) :: n
+    real              :: gvar(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n))
+    real, intent(in)  :: tvar(LIS_rc%ntiles(n))
+    logical           :: red_grid
+! !DESCRIPTION:
+!  This routine converts a tile space variable to the corresponding
+!  grid space. The aggregation involves weighted average of each tile
+!  in a grid cell based on the vegetation distribution. 
+!
+!  The arguments are: 
+!  \begin{description}
+!   \item [n]
+!     index of the domain or nest.
+!   \item [tvar]
+!     variable dimensioned in the tile space. 
+!   \item [gvar]
+!     variable after converstion to the grid space
+!  \end{description}
+!
+!EOP
+    integer           :: i,c,r,t
+    integer           :: c1,r1
+
+    gvar = 0.0
+    do i=1,LIS_rc%ntiles(n)
+       c = LIS_domain(n)%tile(i)%col
+       r = LIS_domain(n)%tile(i)%row
+       t = i
+
+       c1 = c+LIS_ews_halo_ind(n,LIS_localPet+1)-1
+       r1 = r+LIS_nss_halo_ind(n,LIS_localPet+1)-1
+
+       if(r1.ge.LIS_nss_ind(n,LIS_localPet+1).and. &
+            r1.le.LIS_nse_ind(n,LIS_localPet+1).and.&
+            c1.ge.LIS_ews_ind(n,LIS_localPet+1).and.&
+            c1.le.LIS_ewe_ind(n,LIS_localPet+1))then !points not in halo
+
+          gvar(c,r) = tvar(t)
+       endif
+    enddo
+
+  end subroutine tile2grid_local_red
+
+!BOP
+! !ROUTINE: tile2grid_local_ens_red
+! \label{tile2grid_local_ens_red}
+!
+! !INTERFACE:
+  subroutine tile2grid_local_ens_red(n,m,gvar,tvar,red_grid)
+! !USES:
+ 
+    implicit none
+! !ARGUMENTS:     
+    integer, intent(in) :: n
+    integer, intent(in) :: m
+    real              :: gvar(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n))
+    real, intent(in)  :: tvar(LIS_rc%ntiles(n))
+    logical           :: red_grid
+! !DESCRIPTION:
+!  This routine converts a tile space variable to the corresponding
+!  grid space. The aggregation involves weighted average of each tile
+!  in a grid cell based on the vegetation distribution. 
+!
+!  The arguments are: 
+!  \begin{description}
+!   \item [n]
+!     index of the domain or nest.
+!   \item [tvar]
+!     variable dimensioned in the tile space. 
+!   \item [gvar]
+!     variable after converstion to the grid space
+!  \end{description}
+!
+!EOP
+    integer           :: i,c,r,t
+    integer           :: c1,r1
+    
+    gvar = 0.0
+    do i=1,LIS_rc%ntiles(n),LIS_rc%nensem(n)
+       c = LIS_domain(n)%tile(i)%col
+       r = LIS_domain(n)%tile(i)%row
+       t = i+m-1
+ 
+       c1 = c+LIS_ews_halo_ind(n,LIS_localPet+1)-1
+       r1 = r+LIS_nss_halo_ind(n,LIS_localPet+1)-1
+ 
+       if(r1.ge.LIS_nss_ind(n,LIS_localPet+1).and. &
+            r1.le.LIS_nse_ind(n,LIS_localPet+1).and.&
+            c1.ge.LIS_ews_ind(n,LIS_localPet+1).and.&
+            c1.le.LIS_ewe_ind(n,LIS_localPet+1))then !points not in halo
+          
+          gvar(c,r) = tvar(t)
+       endif
+    enddo
+    
+  end subroutine tile2grid_local_ens_red
 
 !BOP
 ! !ROUTINE: LIS_patch2tile

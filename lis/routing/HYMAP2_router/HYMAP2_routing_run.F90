@@ -126,6 +126,7 @@ subroutine HYMAP2_routing_run(n)
 
   integer               :: status
   logical               :: alarmCheck
+  logical               :: red_grid = .true.
   integer               :: c,r,t
   integer               :: ios, nid,qsid,qsbid
 
@@ -136,6 +137,10 @@ subroutine HYMAP2_routing_run(n)
   real,pointer       :: psurf(:)
 
   integer            :: i,ix, iy, ix1, iy1
+  character(26)      :: yfile
+  character(4)       :: yr
+  character(2)       :: mo,da,hr,mn 
+  character(1)       :: temp
 !TBD:SVK - need to redo the code to work with ntiles rather than npatches. 
 !
   alarmCheck = LIS_isAlarmRinging(LIS_rc, "HYMAP2 router model alarm")
@@ -194,9 +199,9 @@ subroutine HYMAP2_routing_run(n)
      allocate(surface_runoff(HYMAP2_routing_struc(n)%nseqall))     
      allocate(baseflow(HYMAP2_routing_struc(n)%nseqall))
      allocate(qrf(HYMAP2_routing_struc(n)%nseqall))
-     allocate(tmpr(LIS_rc%lnc(n),LIS_rc%lnr(n)))
-     allocate(tmpb(LIS_rc%lnc(n),LIS_rc%lnr(n)))
-     allocate(tmpq(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+     allocate(tmpr(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
+     allocate(tmpb(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
+     allocate(tmpq(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
 
      if(HYMAP2_routing_struc(n)%evapflag.ne.0)then
         allocate(tmp_tmp(LIS_rc%lnc(n),LIS_rc%lnr(n)))
@@ -368,9 +373,9 @@ subroutine HYMAP2_routing_run(n)
 
         do m=1,LIS_rc%nensem(n)
 
-           call LIS_tile2grid(n,m,tmpr,surface_runoff_t)
-           call LIS_tile2grid(n,m,tmpb,baseflow_t)
-           call LIS_tile2grid(n,m,tmpq,qrf_t)
+           call LIS_tile2grid(n,m,tmpr,surface_runoff_t,red_grid)
+           call LIS_tile2grid(n,m,tmpb,baseflow_t,red_grid)
+           call LIS_tile2grid(n,m,tmpq,qrf_t,red_grid)
         
            call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
@@ -569,28 +574,28 @@ subroutine HYMAP2_routing_run(n)
            ! Code may not be adapted for negative runoff; need to check after this change is made.    
 
  
-           !temporary solution  
-           call LIS_tile2grid(n,tmpr,surface_runoff_t)
-           call LIS_tile2grid(n,tmpb,baseflow_t)
+           !temporary solution 
+           call LIS_tile2grid(n,tmpr,surface_runoff_t,red_grid)
+           call LIS_tile2grid(n,tmpb,baseflow_t,red_grid)
            if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
-               call LIS_tile2grid(n,tmpq,qrf_t)
+               call LIS_tile2grid(n,tmpq,qrf_t,red_grid)
            endif          
 
            ! Need new tile2grid w/reduced grid
            ! Grid2vector w/reduced grid
  
-           call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+           call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
                 HYMAP2_routing_struc(n)%imis,&
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpr,surface_runoff)
-           call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+           call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                 HYMAP2_routing_struc(n)%nseqall,&
                 HYMAP2_routing_struc(n)%imis,&
                 HYMAP2_routing_struc(n)%seqx,&
                 HYMAP2_routing_struc(n)%seqy,tmpb,baseflow)
            if (HYMAP2_routing_struc(n)%enable2waycpl==3) then
-               call HYMAP2_grid2vector(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+               call HYMAP2_grid2vector(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                     HYMAP2_routing_struc(n)%nseqall,&
                     HYMAP2_routing_struc(n)%imis,&
                     HYMAP2_routing_struc(n)%seqx,&
@@ -618,6 +623,82 @@ subroutine HYMAP2_routing_run(n)
             surface_runoff = surface_runoff + qrf !Add on exfiltration; disabled for simulations w/o LSM
         endif
 
+#if (defined SPMD)
+        if ( LIS_masterproc ) then
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff0dmp.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) surface_runoff
+        !close(1)
+        yfile = yr//mo//da//hr//mn//"rivsto0dmp.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) HYMAP2_routing_struc(n)%rivsto(:,1)
+        !close(1)
+        endif
+#else
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff0ser.txt"
+        !open(1,file=yfile, form='unformatted')
+        !1write(1) surface_runoff
+        !close(1)
+        yfile = yr//mo//da//hr//mn//"rivsto0ser.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) HYMAP2_routing_struc(n)%rivsto(:,1)
+        !close(1)
+#endif
+
+        !print*, HYMAP2_routing_struc(n)%nseqall
+        !print*, LIS_rc%ntiles(n)
+        !print*, LIS_rc%npatch(n,LIS_rc%lsm_index)
+ 
         !TML: Print Statements to test 2-way coupling variables:       
         !print *, "Max. sfc runoff:        ",maxval(surface_runoff)
         !print *, "Max. sub-sfc runoff:    ",maxval(baseflow) 
@@ -626,8 +707,8 @@ subroutine HYMAP2_routing_run(n)
 
         ! Update w/reduced grid
         call HYMAP2_model(n,real(HYMAP2_routing_struc(n)%imis),&
-             LIS_rc%lnc(n),&
-             LIS_rc%lnr(n),&
+             LIS_rc%lnc_red(n),&
+             LIS_rc%lnr_red(n),&
              LIS_rc%yr,&
              LIS_rc%mo,&
              LIS_rc%da,&
@@ -715,6 +796,80 @@ subroutine HYMAP2_routing_run(n)
         bsfsto_mm(:,1)=1000*HYMAP2_routing_struc(n)%bsfsto(:,1)/&
              HYMAP2_routing_struc(n)%grarea
 
+#if (defined SPMD)
+        if ( LIS_masterproc ) then
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff1dmp.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) surface_runoff
+        !close(1)
+        yfile = yr//mo//da//hr//mn//"rivsto1dmp.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) HYMAP2_routing_struc(n)%rivsto(:,1)
+        !close(1)
+        endif
+#else
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff1ser.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) surface_runoff
+        !close(1)
+        yfile = yr//mo//da//hr//mn//"rivsto1ser.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) HYMAP2_routing_struc(n)%rivsto(:,1)
+        !close(1)
+#endif
+
+
+
         call HYMAP2_grid2tile_noens(n,HYMAP2_routing_struc(n)%rivsto(:,1),&
              rivsto_lvec)
         call HYMAP2_grid2tile_noens(n,HYMAP2_routing_struc(n)%rivdph(:,1),&
@@ -763,7 +918,7 @@ subroutine HYMAP2_routing_run(n)
 
         !ag (12Sep2019)
         if (HYMAP2_routing_struc(n)%enable2waycpl>0) then
-           allocate(tmp_nensem(LIS_rc%lnc(n),LIS_rc%lnr(n),1))
+           allocate(tmp_nensem(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1))
           ! River Storage
           call ESMF_StateGet(LIS_runoff_state(n),"River Storage",rivsto_field, rc=status)
           call LIS_verify(status, "HYMAP2_routing_run: ESMF_StateGet failed for River Storage")
@@ -779,7 +934,7 @@ subroutine HYMAP2_routing_run(n)
           
           !HYMAP2_routing_struc(n)%rivstotmp=HYMAP2_routing_struc(n)%rivsto
           
-          call HYMAP2_vector2grid(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+          call HYMAP2_vector2grid(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,HYMAP2_routing_struc(n)%seqx,&
                HYMAP2_routing_struc(n)%seqy,tmp_nensem(:,:,1), &
@@ -803,7 +958,7 @@ subroutine HYMAP2_routing_run(n)
 
           !HYMAP2_routing_struc(n)%rivdphtmp=HYMAP2_routing_struc(n)%rivdph
 
-          call HYMAP2_vector2grid(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+          call HYMAP2_vector2grid(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,HYMAP2_routing_struc(n)%seqx,&
                HYMAP2_routing_struc(n)%seqy,tmp_nensem(:,:,1), &
@@ -825,7 +980,7 @@ subroutine HYMAP2_routing_run(n)
           enddo
 
 
-          call HYMAP2_vector2grid(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+          call HYMAP2_vector2grid(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,HYMAP2_routing_struc(n)%seqx,&
                HYMAP2_routing_struc(n)%seqy,tmp_nensem(:,:,1), &
@@ -841,7 +996,7 @@ subroutine HYMAP2_routing_run(n)
           call LIS_verify(status)
           
           !create flooded fraction flags
-          call HYMAP2_vector2grid(LIS_rc%lnc(n),LIS_rc%lnr(n),1,&
+          call HYMAP2_vector2grid(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),1,&
                HYMAP2_routing_struc(n)%nseqall,&
                HYMAP2_routing_struc(n)%imis,HYMAP2_routing_struc(n)%seqx,&
                HYMAP2_routing_struc(n)%seqy,tmp_nensem(:,:,1), &

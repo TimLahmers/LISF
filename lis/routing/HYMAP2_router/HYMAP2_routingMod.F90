@@ -72,6 +72,7 @@ module HYMAP2_routingMod
   integer, allocatable :: seqy_glb(:)
 
   integer              :: nseqall       !length of 1D sequnece for river and mouth  
+  integer              :: nseqallh       !length of 1D sequnece for river and mouth w/halos
 ! === Map ===============================================
   integer, allocatable :: sindex(:,:)     !2-D sequence index
   integer, allocatable :: outlet(:)       !outlet flag: 0 - river; 1 - ocean
@@ -685,16 +686,16 @@ contains
        LIS_routing(n)%nextx = HYMAP2_routing_struc(n)%nextx
 
        write(LIS_logunit,*) '[INFO] Get number of HYMAP2 grid cells'
+       ! First get nsequall for grid w/halos
        call HYMAP2_get_vector_size(LIS_rc%lnc(n),LIS_rc%lnr(n),&
             LIS_rc%gnc(n),LIS_rc%gnr(n),&
             LIS_ews_halo_ind(n,LIS_localPet+1), &
             LIS_nss_halo_ind(n,LIS_localPet+1), &
             HYMAP2_routing_struc(n)%imis,&
             HYMAP2_routing_struc(n)%nextx,&
-            mask,HYMAP2_routing_struc(n)%nseqall)
+            mask,HYMAP2_routing_struc(n)%nseqallh)
 
-
-       !dummy call
+       !TML: call for true HyMAP grid
        call HYMAP2_get_vector_size(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n),&
               LIS_rc%gnc(n),LIS_rc%gnr(n), &
               LIS_ews_ind(n,LIS_localPet+1), &

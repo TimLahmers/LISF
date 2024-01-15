@@ -137,11 +137,11 @@ module LIS_routingMod
        allocate(LIS_routing(LIS_rc%nnest))
 
        do n=1,LIS_rc%nnest
-          allocate(LIS_routing(n)%dommask(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+          allocate(LIS_routing(n)%dommask(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
           allocate(LIS_routing(n)%nextx(LIS_rc%gnc(n),LIS_rc%gnr(n)))
-          allocate(LIS_routing(n)%gindex(LIS_rc%lnc(n),LIS_rc%lnr(n)))
+          allocate(LIS_routing(n)%gindex(LIS_rc%lnc_red(n),LIS_rc%lnr_red(n)))
           allocate(LIS_routing(n)%ntiles_pergrid(LIS_rc%gnc(n)*LIS_rc%gnr(n)))
-          allocate(ntiles_pergrid(LIS_rc%lnc(n)*LIS_rc%lnr(n)))
+          allocate(ntiles_pergrid(LIS_rc%lnc_red(n)*LIS_rc%lnr_red(n)))
        enddo
 
        allocate(LIS_rc%nroutinggrid(LIS_rc%nnest))
@@ -193,17 +193,17 @@ module LIS_routingMod
           LIS_routing(n)%gindex = -1
           ntiles_pergrid = 0 
 
-          do c=1,LIS_rc%lnc(n)
-             do r=1,LIS_rc%lnr(n)
+          do c=1,LIS_rc%lnc_red(n)
+             do r=1,LIS_rc%lnr_red(n)
                 cg = c+LIS_ews_halo_ind(n,LIS_localPet+1)-1
                 rg = r+LIS_nss_halo_ind(n,LIS_localPet+1)-1
                 if(LIS_routing(n)%dommask(c,r).gt.0.and.&
                      LIS_routing(n)%nextx(cg,rg).ne.LIS_rc%udef) then      
 
                    LIS_routing(n)%grid(kk)%lat = &
-                        LIS_domain(n)%lat(c+(r-1)*LIS_rc%lnc(n))
+                        LIS_domain(n)%lat(c+(r-1)*LIS_rc%lnc_red(n))
                    LIS_routing(n)%grid(kk)%lon = &
-                        LIS_domain(n)%lon(c+(r-1)*LIS_rc%lnc(n))
+                        LIS_domain(n)%lon(c+(r-1)*LIS_rc%lnc_red(n))
 
                    LIS_routing(n)%grid(kk)%col = c
                    LIS_routing(n)%grid(kk)%row = r
@@ -213,8 +213,8 @@ module LIS_routingMod
                       LIS_routing(n)%tile(k)%row = r
                       LIS_routing(n)%tile(k)%col = c
                       LIS_routing(n)%tile(k)%index = kk
-                      ntiles_pergrid(r+(c-1)*LIS_rc%lnr(n)) = &
-                           ntiles_pergrid(r+(c-1)*LIS_rc%lnr(n)) + 1
+                      ntiles_pergrid(r+(c-1)*LIS_rc%lnr_red(n)) = &
+                           ntiles_pergrid(r+(c-1)*LIS_rc%lnr_red(n)) + 1
                       k = k + 1
                    enddo
                    LIS_routing(n)%gindex(c,r) = kk
