@@ -272,6 +272,8 @@ subroutine NoahMP401_dump_restart(n, ftn, wformat)
     integer :: qspring_ID
     integer :: deeprech_ID
     integer :: rech_ID
+    integer :: inactive_ID
+    integer :: kroot_ID
     integer :: grain_ID
     integer :: gdd_ID
     integer :: pgs_ID
@@ -852,5 +854,21 @@ subroutine NoahMP401_dump_restart(n, ftn, wformat)
                                      "-", vlevels=1, valid_min=-99999.0, valid_max=99999.0)
         call LIS_writevar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%riverbed, &
                                      varid=riverbed_ID, dim=1, wformat=wformat)
+    endif
+
+    !TML Root Zone Scheme
+    if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+        call LIS_writeHeader_restart(ftn, n, dimID, inactive_ID, "INACTIVE", &
+                                     "Number of timesteps with inactive roots", &
+                                     "-", vlevels=1, valid_min=-99999.0, valid_max=99999.0)
+        call LIS_writevar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%inactive, &
+                                     varid=inactive_ID, dim=1, wformat=wformat)
+
+        call LIS_writeHeader_restart(ftn, n, dimID, kroot_ID, "KROOT", &
+                                     "Layer depth of root zone", &
+                                     "-", vlevels=1, valid_min=-99999.0, valid_max=99999.0)
+        call LIS_writevar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%kroot, &
+                                     varid=kroot_ID, dim=1, wformat=wformat)
+
     endif
 end subroutine NoahMP401_dump_restart

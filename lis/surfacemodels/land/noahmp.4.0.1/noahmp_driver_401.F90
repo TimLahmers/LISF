@@ -551,6 +551,7 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
      stop "(opt_sfc == 3) and (opt_sfc == 4) are not for offline use"
   endif
 
+
   ! set ZSOIL 
   allocate(zsoil(nsoil))
   do k = 1,nsoil

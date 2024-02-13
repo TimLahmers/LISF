@@ -16,13 +16,13 @@ subroutine mmf_start(n)
     real, allocatable,dimension(:,:) ::  fdepth, topo , area, rechclim, rivercond, &
                                         wtd, riverbed, eqwtd, pexp, smcwtdxy, &
                                         deeprechxy, rechxy, qslatxy, qrfsxy, qspringsxy  
-    real, allocatable,dimension(:,:,:) :: smois, sh2o, smoiseq
+    real, allocatable,dimension(:,:,:) :: smois, sh2o, smoiseq, tslb
 #if (defined SPMD)
     integer, allocatable, dimension(:,:) :: gisltyp, givgtyp
     real, allocatable, dimension(:,:) :: gfdepth, gtopo , garea, grechclim, grivercond, &
                                          gwtd, griverbed, geqwtd, gpexp, gsmcwtdxy, &
                                          gdeeprechxy, grechxy, gqslatxy, gqrfsxy, gqspringsxy
-    real, allocatable,dimension(:,:,:) :: gsmois, gsh2o, gsmoiseq
+    real, allocatable,dimension(:,:,:) :: gsmois, gsh2o, gsmoiseq, gtslb
 #endif
     wtddt = int(LIS_rc%ts/60) ! in minutes? 
 
@@ -44,6 +44,7 @@ subroutine mmf_start(n)
     allocate(qrfsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(qspringsxy(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(smois(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+    allocate(tslb(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(sh2o(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     allocate(smoiseq(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, 1:NOAHMP401_struc(n)%nsoil, NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
     
@@ -59,6 +60,7 @@ subroutine mmf_start(n)
             endif
             smois(col,:,row) = NOAHMP401_struc(n)%init_smc(:)
             sh2o(col,:,row) = NOAHMP401_struc(n)%init_smc(:)
+            tslb(col,:,row) = NOAHMP401_struc(n)%init_tslb(:)
             smoiseq(col,:,row) = 0.0
         enddo
     enddo
@@ -108,6 +110,7 @@ subroutine mmf_start(n)
         allocate(gqspringsxy(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(grechclim(LIS_rc%gnc(n), LIS_rc%gnr(n)))
         allocate(gsmois(LIS_rc%gnc(n), NOAHMP401_struc(n)%nsoil, LIS_rc%gnr(n)))
+        allocate(gtslb(LIS_rc%gnc(n), NOAHMP401_struc(n)%nsoil, LIS_rc%gnr(n)))
         allocate(gsh2o(LIS_rc%gnc(n), NOAHMP401_struc(n)%nsoil, LIS_rc%gnr(n)))
         allocate(gsmoiseq(LIS_rc%gnc(n), NOAHMP401_struc(n)%nsoil, LIS_rc%gnr(n)))
     else
@@ -130,6 +133,7 @@ subroutine mmf_start(n)
         allocate(gqspringsxy(1,1))
         allocate(grechclim(1,1))
         allocate(gsmois(1,1,1))
+        allocate(gtslb(1,1,1))
         allocate(gsh2o(1,1,1))
         allocate(gsmoiseq(1,1,1))
     endif
@@ -161,14 +165,50 @@ subroutine mmf_start(n)
     call LIS_gather_masterproc_2d_local_to_global(n, smois(:,2,:), gsmois(:,2,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smois(:,3,:), gsmois(:,3,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smois(:,4,:), gsmois(:,4,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,5,:), gsmois(:,5,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,6,:), gsmois(:,6,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,7,:), gsmois(:,7,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,8,:), gsmois(:,8,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,9,:), gsmois(:,9,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,10,:), gsmois(:,10,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,11,:), gsmois(:,11,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smois(:,12,:), gsmois(:,12,:))
     call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,1,:), gsh2o(:,1,:))
     call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,2,:), gsh2o(:,2,:))
     call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,3,:), gsh2o(:,3,:))
     call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,4,:), gsh2o(:,4,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,5,:), gsh2o(:,5,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,6,:), gsh2o(:,6,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,7,:), gsh2o(:,7,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,8,:), gsh2o(:,8,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,9,:), gsh2o(:,9,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,10,:), gsh2o(:,10,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,11,:), gsh2o(:,11,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, sh2o(:,12,:), gsh2o(:,12,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,1,:), gsmoiseq(:,1,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,2,:), gsmoiseq(:,2,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,3,:), gsmoiseq(:,3,:))
     call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,4,:), gsmoiseq(:,4,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,5,:), gsmoiseq(:,5,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,6,:), gsmoiseq(:,6,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,7,:), gsmoiseq(:,7,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,8,:), gsmoiseq(:,8,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,9,:), gsmoiseq(:,9,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,10,:), gsmoiseq(:,10,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,11,:), gsmoiseq(:,11,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, smoiseq(:,12,:), gsmoiseq(:,12,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,1,:), gtslb(:,1,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,2,:), gtslb(:,2,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,3,:), gtslb(:,3,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,4,:), gtslb(:,4,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,5,:), gtslb(:,5,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,6,:), gtslb(:,6,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,7,:), gtslb(:,7,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,8,:), gtslb(:,8,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,9,:), gtslb(:,9,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,10,:), gtslb(:,10,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,11,:), gtslb(:,11,:))
+    call LIS_gather_masterproc_2d_local_to_global(n, tslb(:,12,:), gtslb(:,12,:))
 
     if ( LIS_masterproc ) then
         ! Allocate out variables
@@ -203,7 +243,7 @@ subroutine mmf_start(n)
                             gfdepth, gtopo, griverbed, geqwtd, grivercond, gpexp , garea ,gwtd , &
                             gsmois,gsh2o, gsmoiseq, gsmcwtdxy, gdeeprechxy, grechxy ,  &
                             gqslatxy, gqrfsxy, gqspringsxy,                  &
-                            grechclim  ,                                   &
+                            grechclim  ,  gtslb ,  &
                             1,             & !ids,
                             LIS_rc%gnc(n), & !ide, +1 for test
                             1,             & !jds,
@@ -244,14 +284,50 @@ subroutine mmf_start(n)
     call LIS_scatter_global_to_local_grid(n, gsmois(:,2,:), smois(:,2,:))
     call LIS_scatter_global_to_local_grid(n, gsmois(:,3,:), smois(:,3,:))
     call LIS_scatter_global_to_local_grid(n, gsmois(:,4,:), smois(:,4,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,5,:), smois(:,5,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,6,:), smois(:,6,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,7,:), smois(:,7,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,8,:), smois(:,8,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,9,:), smois(:,9,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,10,:), smois(:,10,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,11,:), smois(:,11,:))
+    call LIS_scatter_global_to_local_grid(n, gsmois(:,12,:), smois(:,12,:))
     call LIS_scatter_global_to_local_grid(n, gsh2o(:,1,:), sh2o(:,1,:))
     call LIS_scatter_global_to_local_grid(n, gsh2o(:,2,:), sh2o(:,2,:))
     call LIS_scatter_global_to_local_grid(n, gsh2o(:,3,:), sh2o(:,3,:))
     call LIS_scatter_global_to_local_grid(n, gsh2o(:,4,:), sh2o(:,4,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,5,:), sh2o(:,5,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,6,:), sh2o(:,6,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,7,:), sh2o(:,7,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,8,:), sh2o(:,8,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,9,:), sh2o(:,9,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,10,:), sh2o(:,10,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,11,:), sh2o(:,11,:))
+    call LIS_scatter_global_to_local_grid(n, gsh2o(:,12,:), sh2o(:,12,:))
     call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,1,:), smoiseq(:,1,:))
     call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,2,:), smoiseq(:,2,:))
     call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,3,:), smoiseq(:,3,:))
     call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,4,:), smoiseq(:,4,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,5,:), smoiseq(:,5,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,6,:), smoiseq(:,6,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,7,:), smoiseq(:,7,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,8,:), smoiseq(:,8,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,9,:), smoiseq(:,9,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,10,:), smoiseq(:,10,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,11,:), smoiseq(:,11,:))
+    call LIS_scatter_global_to_local_grid(n, gsmoiseq(:,12,:), smoiseq(:,12,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,1,:), tslb(:,1,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,2,:), tslb(:,2,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,3,:), tslb(:,3,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,4,:), tslb(:,4,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,5,:), tslb(:,5,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,6,:), tslb(:,6,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,7,:), tslb(:,7,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,8,:), tslb(:,8,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,9,:), tslb(:,9,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,10,:), tslb(:,10,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,11,:), tslb(:,11,:))
+    call LIS_scatter_global_to_local_grid(n, gtslb(:,12,:), tslb(:,12,:))
     call LIS_scatter_global_to_local_grid(n, grivercond, rivercond)
 
     ! Deallocate temporary global variables
@@ -275,6 +351,7 @@ subroutine mmf_start(n)
     deallocate(gsmois)
     deallocate(gsh2o)
     deallocate(gsmoiseq)
+    deallocate(gtslb)
 
 #else
     
@@ -298,7 +375,7 @@ subroutine mmf_start(n)
                             fdepth, topo, riverbed, eqwtd, rivercond, pexp , area ,wtd ,  &
                             smois,sh2o, smoiseq, smcwtdxy, deeprechxy, rechxy ,  &
                             qslatxy, qrfsxy, qspringsxy,                  &
-                            rechclim  ,                                   &
+                            rechclim  , tslb  ,    &
                             NOAHMP401_struc(n)%col_min, & !ids,
                             NOAHMP401_struc(n)%col_max, & !ide, +1 for test
                             NOAHMP401_struc(n)%row_min, & !jds,
@@ -344,6 +421,7 @@ subroutine mmf_start(n)
                 NOAHMP401_struc(n)%noahmp401(t)%smc(:)    = smois(col,:,row) ! smois
                 NOAHMP401_struc(n)%noahmp401(t)%sh2o(:)   = sh2o(col,:,row)
                 NOAHMP401_struc(n)%noahmp401(t)%smoiseq(:)= smoiseq(col,:,row) 
+                NOAHMP401_struc(n)%noahmp401(t)%tslb(:)= tslb(col,:,row)
                 if(isltyp(col,row) .eq. 14) then
                     NOAHMP401_struc(n)%noahmp401(t)%smcwtd = 1.0
                 else
@@ -380,4 +458,5 @@ subroutine mmf_start(n)
     deallocate(smois)
     deallocate(sh2o)
     deallocate(smoiseq)
+    deallocate(tslb)
 end subroutine mmf_start

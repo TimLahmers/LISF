@@ -65,7 +65,7 @@ subroutine NoahMP401_coldstart(mtype)
     LOGICAL ::     restart,          &
          &         allowed_to_read
 
-    real, dimension(4) ::     DZS  ! Thickness of the soil layers [m]
+    real, dimension(12) ::     DZS  ! Thickness of the soil layers [m]
     real ::     dx, dy
     real, dimension( 1, 1 ) :: msftx, msfty
     real :: wtddt, dtbl
@@ -80,7 +80,7 @@ subroutine NoahMP401_coldstart(mtype)
          &                           ISLTYP,        &  ! soil type
                                      IVGTYP            ! vegetation type
 
-    real,    dimension( 1, 4, 1 ) ::            &
+    real,    dimension( 1, 12, 1 ) ::            &
          &                            tslb_3d,      &  ! soil temperature [K]
          &                           smois_3d,      &  ! volumetric soil moisture [m3/m3]
          &                            sh2o_3d          ! volumetric liquid soil moisture [m3/m3]
@@ -282,6 +282,9 @@ subroutine NoahMP401_coldstart(mtype)
              IVGTYP(1,1) = NOAHMP401_struc(n)%noahmp401(t)%vegetype
              ISLTYP(1,1) = NOAHMP401_struc(n)%noahmp401(t)%soiltype
 
+             !print*, "t",t
+             !print*, "ISLTYP", ISLTYP(1,1) 
+
              do l=1, NOAHMP401_struc(n)%nsoil
                tslb_3d(1,l,1) = NOAHMP401_struc(n)%init_tslb(l)  ! Noah-MP.4.0.1 initial soil temperatures: 
                smois_3d(1,l,1) = NOAHMP401_struc(n)%init_smc(l)  ! Noah-MP.4.0.1 initial total soil moistures:
@@ -368,6 +371,8 @@ subroutine NoahMP401_coldstart(mtype)
              acsnowxy(1,1) = 0.0
              taussxy(1,1) = 0.0
              pgsxy(1,1) = 0
+
+            !print*, "PRE-INIT ISLTYP value:", ISLTYP(1,1) 
 
             CALL NOAHMP_INIT(    LLANDUSE, tmp_swe, tmp_snodep, canwatxy,   ISLTYP,   IVGTYP, XLAT, & 
                            tslb_3d, smois_3d,     sh2o_3d,      DZS, FNDSOILW, FNDSNOWH, &

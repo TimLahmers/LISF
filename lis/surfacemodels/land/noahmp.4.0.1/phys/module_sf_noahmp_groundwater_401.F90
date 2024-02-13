@@ -78,6 +78,7 @@ CONTAINS
 !LOCAL  
   
   INTEGER                          :: I,J,K  
+  REAL                             :: debug
   REAL, DIMENSION(       0:NSOIL)  :: ZSOIL !depth of soil layer-bottom [m]
   REAL,  DIMENSION(      1:NSOIL)  :: SMCEQ  !equilibrium soil water  content [m3/m3]
   REAL,  DIMENSION(      1:NSOIL)  :: SMC,SH2O
@@ -86,9 +87,15 @@ CONTAINS
                                                 ,WPLUS,WMINUS
   REAL,      DIMENSION( ims:ime, jms:jme )    :: QLAT
   INTEGER,   DIMENSION( ims:ime, jms:jme )    :: LANDMASK !-1 for water (ice or no ice) and glacial areas, 1 for land where the LSM does its soil moisture calculations.
-  
-  REAL :: BEXP,DKSAT,PSISAT,SMCMAX,SMCWLT
+  REAL,      DIMENSION( ims:ime, jms:jme )    :: wtd_prev
+  REAL                                        :: BEXP,mid,smcmaxdeep,psisatdeep,dksatdeep
+  REAL, DIMENSION( 1:NSOIL)                   :: DKSAT,PSISAT,SMCMAX,SMCWLT
   !REAL :: QLAT_temp,QRF_temp,QSPRING_temp,DEEPRECH_temp
+  !12-layer soils
+  REAL                                :: SMCMAXtop
+  REAL                                :: PSISATtop
+  REAL                                :: DKSATtop
+  REAL                                :: SMCWLTtop
 
     !print *,"WTABLE Called"
     !print*, 'ZWT = ',WTD(25,12)
@@ -109,6 +116,7 @@ CONTAINS
 !Calculate lateral flow
 
     QLAT = 0.
+    wtd_prev = wtd
 CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
                         ,ids,ide,jds,jde,kds,kde                      &
                         ,ims,ime,jms,jme,kms,kme                      &
@@ -129,6 +137,16 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
              QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)
 !for now, dont allow it to go from river to groundwater
              QRF(I,J) = MAX(QRF(I,J),0.)
+! TML: Check for extreme QRF:
+             !IF (QRF(I,J).GT.2.0) THEN
+             !    print *,"WARNING: Extreme QRF Detected"
+             !    print *,"I=                   ",I
+             !    print *,"J=                   ",J
+             !    print *,"QRF=                 ",QRF(I,J)
+             !    print *,"RCOND=               ",RCOND
+             !    print *,"WTD Diff.            ",WTD(I,J)-RIVERBED(I,J)
+             !    print *,"WTD chance from qslat",WTD(I,J)-WTD_PREV(I,J)
+             !ENDIF
           ELSE
              QRF(I,J) = 0.
           ENDIF
@@ -141,29 +159,51 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
           IF(LANDMASK(I,J).GT.0)THEN
 
             BEXP   = BEXP_TABLE   (ISLTYP(I,J))
-            DKSAT  = DKSAT_TABLE  (ISLTYP(I,J))
-            PSISAT = -1.0*PSISAT_TABLE (ISLTYP(I,J))
-            SMCMAX = SMCMAX_TABLE (ISLTYP(I,J))
-            SMCWLT = SMCWLT_TABLE (ISLTYP(I,J))
+            !DKSAT  = DKSAT_TABLE  (ISLTYP(I,J))
+            !PSISAT = -1.0*PSISAT_TABLE (ISLTYP(I,J))
+            !SMCMAX = SMCMAX_TABLE (ISLTYP(I,J))
+            !SMCWLT = SMCWLT_TABLE (ISLTYP(I,J))
 
-             IF(IVGTYP(I,J)==ISURBAN)THEN
-                 SMCMAX = 0.45
-                 SMCWLT = 0.40
-             ENDIF
+            DO K=1, NSOIL !CB
+
+                IF(K==1) THEN ! Get layer midpoints
+                  mid = -0.05
+                ELSE
+                  mid = 0.5 * (ZSOIL(K-1) + ZSOIL(K))
+                ENDIF
+
+                SMCMAXtop = SMCMAX_TABLE(ISLTYP(I,J))      ! Values at top of column
+                PSISATtop = PSISAT_TABLE(ISLTYP(I,J))
+                DKSATtop  = DKSAT_TABLE(ISLTYP(I,J))
+                SMCWLTtop = SMCWLT_TABLE(ISLTYP(I,J))
+                IF(IVGTYP(I,J)==ISURBAN)THEN
+                    SMCMAXtop = 0.45
+                    SMCWLTtop = 0.40
+                ENDIF
+                SMCMAX(K) = SMCMAXtop*max(min(exp((mid+1.5)/FDEPTH(I,J)),1.),0.1)
+                SMCWLT(K) = SMCWLTtop*max(min(exp((mid+1.5)/FDEPTH(I,J)),1.),0.1)
+                DKSAT(K)  = DKSATtop*max(min(exp((mid+1.5)/FDEPTH(I,J)),1.),0.1)
+                PSISAT(K) = -PSISATtop*min(max(exp(-(mid+1.5)/FDEPTH(I,J)),1.),10.)
+
+            END DO !CB
+
+             psisatdeep = -PSISATtop*min(max(exp(-(-22.5+1.5)/FDEPTH(I,J)),1.),10.)
+             smcmaxdeep = SMCMAXtop*max(min(exp((-22.5+1.5)/FDEPTH(I,J)),1.),0.1)
+             dksatdeep = DKSATtop*max(min(exp((-22.5+1.5)/FDEPTH(I,J)),1.),0.1)
 
 !for deep water table calculate recharge
              IF(WTD(I,J) < ZSOIL(NSOIL)-DZS(NSOIL))THEN
 !assume all liquid if the wtd is deep
                 DDZ = ZSOIL(NSOIL)-WTD(I,J)
-                SMCWTDMID = 0.5 * (SMCWTD(I,J) + SMCMAX )
-                PSI = PSISAT * ( SMCMAX / SMCWTD(I,J) ) ** BEXP
-                WCNDDEEP = DKSAT * ( SMCWTDMID / SMCMAX ) ** (2.0*BEXP + 3.0)
-                WFLUXDEEP =  - DELTAT * WCNDDEEP * ( (PSISAT-PSI) / DDZ - 1.)
+                SMCWTDMID = 0.5 * (SMCWTD(I,J) + SMCMAXDEEP )
+                PSI = PSISATDEEP * ( SMCMAXDEEP / SMCWTD(I,J) ) ** BEXP
+                WCNDDEEP = DKSATDEEP * ( SMCWTDMID / SMCMAXDEEP ) ** (2.0*BEXP + 3.0)
+                WFLUXDEEP =  - DELTAT * WCNDDEEP * ( (PSISATDEEP-PSI) / DDZ - 1.)
 !update deep soil moisture
                 SMCWTD(I,J) = SMCWTD(I,J)  + (DEEPRECH(I,J) -  WFLUXDEEP)  / DDZ
-                WPLUS       = MAX((SMCWTD(I,J)-SMCMAX), 0.0) * DDZ
+                WPLUS       = MAX((SMCWTD(I,J)-SMCMAXDEEP), 0.0) * DDZ
                 WMINUS       = MAX((1.E-4-SMCWTD(I,J)), 0.0) * DDZ
-                SMCWTD(I,J) = MAX( MIN(SMCWTD(I,J),SMCMAX) , 1.E-4)
+                SMCWTD(I,J) = MAX( MIN(SMCWTD(I,J),SMCMAXDEEP) , 1.E-4)
                 WFLUXDEEP = WFLUXDEEP + WPLUS - WMINUS
                 DEEPRECH(I,J) = WFLUXDEEP
               ENDIF
@@ -194,11 +234,34 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
              !    ENDIF
              !ENDIF
 
+! TML: Check for extreme QRF:
+             !IF (QRF(I,J).GT.2.0) THEN
+             !    print *,"WARNING: Extreme QRF Detected"
+             !    print *,"I=          ",I
+             !    print *,"J=          ",J
+             !    print *,"QRF=        ",QRF(I,J)
+             !ENDIF
+! TML: Check WTD for unphysical values
+             !IF (TOTWATER.LT.-2.0) THEN
+             !    print *,"WARNING: Extreme WATER DROP LIKELY; Before Update"
+             !    print *,"I=          ",I
+             !    print *,"J=          ",J
+             !    print *,"QRF=        ",QRF(I,J)
+             !    print *,"QLAT=       ",QLAT(I,J)
+             !    print *,"DEEPRECH=   ",DEEPRECH(I,J)
+             !    print *,"TOTWATER=   ",TOTWATER
+             !    print *,"EQWTD=      ",EQWTD(I,J)
+             !    print *,"WTD=        ",WTD(I,J)
+             !    print *,"RIVERBED=   ",RIVERBED(I,J)
+             !    !debug = EQWTD(I,J)/0.  !Intentionally Crash Code To Stop totalview...
+             !ENDIF
 
+             !print *, "MMF TOTWATER (before update):", TOTWATER
+             !print *, "SMCWTD (before update):      ",SMCWTD(I,J)
 !Update the water table depth and soil moisture
              CALL UPDATEWTD ( NSOIL, DZS , ZSOIL, SMCEQ, SMCMAX, SMCWLT, PSISAT, BEXP ,I , J , &!in
                               TOTWATER, WTD(I,J), SMC, SH2O, SMCWTD(I,J)      , &!inout
-                              QSPRING(I,J) ) !out
+                              QSPRING(I,J), SMCMAXDEEP, PSISATDEEP ) !out
 
              !IF (I == 25) THEN
              !    IF (J == 12) THEN
@@ -210,6 +273,19 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
              !        print*, 'SMCWTD = ',SMCWTD(I,J)
              !        print*, 'QSPRING = ',QSPRING(I,J)
              !    ENDIF
+             !ENDIF
+
+! TML: Check WTD for unphysical values
+             !IF (WTD(I,J) - wtd_prev(I,J).GT.5.0) THEN
+             !    print *,"WARNING: Unrealistic WTD Update"
+             !    print *,"Model may become unstable..."
+             !    print *,"I=          ",I
+             !    print *,"J=          ",J
+             !    print *,"WTD-0=      ",wtd_prev(I,J)
+             !    print *,"WTD-1=      ",WTD(I,J)
+             !    print *,"SMCMAXDEEP= ",SMCMAXDEEP
+             !    print *,"SMCWTD=     ",SMCWTD(I,J)
+             !    !debug = EQWTD(I,J)/0.  !Intentionally Crash Code To Stop totalview...
              !ENDIF
 
 
@@ -407,16 +483,18 @@ END  SUBROUTINE LATERALFLOW
   SUBROUTINE UPDATEWTD  (NSOIL,  DZS,  ZSOIL ,SMCEQ                ,& !in
                          SMCMAX, SMCWLT, PSISAT, BEXP ,ILOC ,JLOC  ,& !in
                          TOTWATER, WTD ,SMC, SH2O ,SMCWTD          ,& !inout
-                         QSPRING                                 )  !out
+                         QSPRING, SMCMAXDEEP, PSISATDEEP           )  !out
 ! ----------------------------------------------------------------------
   IMPLICIT NONE
 ! ----------------------------------------------------------------------
 ! input
   INTEGER,                         INTENT(IN) :: NSOIL !no. of soil layers
   INTEGER,                         INTENT(IN) :: ILOC, JLOC
-  REAL,                         INTENT(IN)    :: SMCMAX
-  REAL,                         INTENT(IN)    :: SMCWLT
-  REAL,                         INTENT(IN)    :: PSISAT
+  REAL,  DIMENSION(      1:NSOIL), INTENT(IN) :: SMCMAX
+  REAL,  DIMENSION(      1:NSOIL), INTENT(IN) :: SMCWLT
+  REAL,  DIMENSION(      1:NSOIL), INTENT(IN) :: PSISAT
+  REAL,                            INTENT(IN) :: PSISATDEEP ! CB
+  REAL,                            INTENT(IN) :: SMCMAXDEEP ! CB
   REAL,                         INTENT(IN)    :: BEXP
   REAL,  DIMENSION(       0:NSOIL), INTENT(IN) :: ZSOIL !depth of soil layer-bottom [m]
   REAL,  DIMENSION(       1:NSOIL), INTENT(IN) :: SMCEQ  !equilibrium soil water  content [m3/m3]
@@ -463,34 +541,34 @@ IF(totwater.gt.0.)then
             kwtd=iwtd+1
 
 !max water that fits in the layer
-            maxwatup=dzs(kwtd)*(smcmax-smc(kwtd))
+            maxwatup=dzs(kwtd)*(smcmax(kwtd)-smc(kwtd))
 
             if(totwater.le.maxwatup)then
                smc(kwtd) = smc(kwtd) + totwater / dzs(kwtd)
-               smc(kwtd) = min(smc(kwtd),smcmax)
+               smc(kwtd) = min(smc(kwtd),smcmax(kwtd))
                if(smc(kwtd).gt.smceq(kwtd))wtd = min ( ( smc(kwtd)*dzs(kwtd) &
-                 - smceq(kwtd)*zsoil(iwtd) + smcmax*zsoil(kwtd) ) / &
-                     ( smcmax-smceq(kwtd) ) , zsoil(iwtd) )
+                 - smceq(kwtd)*zsoil(iwtd) + smcmax(kwtd)*zsoil(kwtd) ) / &
+                      ( smcmax(kwtd)-smceq(kwtd) ) , zsoil(iwtd) )
                totwater=0.
             else   !water enough to saturate the layer
-              smc(kwtd) = smcmax
+              smc(kwtd) = smcmax(kwtd)
               totwater=totwater-maxwatup
               k1=iwtd
               do k=k1,0,-1
                  wtd = zsoil(k)
                  iwtd=k-1
                  if(k.eq.0)exit
-                 maxwatup=dzs(k)*(smcmax-smc(k))
+                 maxwatup=dzs(k)*(smcmax(k)-smc(k))
                  if(totwater.le.maxwatup)then
                    smc(k) = smc(k) + totwater / dzs(k)
-                   smc(k) = min(smc(k),smcmax)
+                   smc(k) = min(smc(k),smcmax(k))
                    if(smc(k).gt.smceq(k))wtd = min ( ( smc(k)*dzs(k) &
-                     - smceq(k)*zsoil(iwtd) + smcmax*zsoil(k) ) / &
-                     ( smcmax-smceq(k) ) , zsoil(iwtd) )
+                     - smceq(k)*zsoil(iwtd) + smcmax(k)*zsoil(k) ) / &
+                     ( smcmax(k)-smceq(k) ) , zsoil(iwtd) )
                    totwater=0.
                    exit
                  else
-                    smc(k) = smcmax
+                    smc(k) = smcmax(k)
                     totwater=totwater-maxwatup
                  endif
 
@@ -501,37 +579,37 @@ IF(totwater.gt.0.)then
          elseif(wtd.ge.zsoil(nsoil)-dzs(nsoil))then ! wtd below bottom of soil model
 
             !gmmequilibrium soil moisture content
-               smceqdeep = smcmax * ( psisat / &
-                           (psisat - dzs(nsoil)) ) ** (1./bexp)
+               smceqdeep = smcmaxdeep * ( psisatdeep / &
+                           (psisatdeep - dzs(nsoil)) ) ** (1./bexp)
 !               smceqdeep = max(smceqdeep,smcwlt)
                smceqdeep = max(smceqdeep,1.E-4)
 
-            maxwatup=(smcmax-smcwtd)*dzs(nsoil)
+            maxwatup=(smcmaxdeep-smcwtd)*dzs(nsoil)
 
             if(totwater.le.maxwatup)then
                 smcwtd = smcwtd + totwater / dzs(nsoil)
-                smcwtd = min(smcwtd,smcmax)
+                smcwtd = min(smcwtd,smcmaxdeep)
                 if(smcwtd.gt.smceqdeep)wtd = min( ( smcwtd*dzs(nsoil) &
-                 - smceqdeep*zsoil(nsoil) + smcmax*(zsoil(nsoil)-dzs(nsoil)) ) / &
-                     ( smcmax-smceqdeep ) , zsoil(nsoil) )
+                 - smceqdeep*zsoil(nsoil) + smcmaxdeep*(zsoil(nsoil)-dzs(nsoil)) ) / &
+                     ( smcmaxdeep-smceqdeep ) , zsoil(nsoil) )
                 totwater=0.
             else
-                smcwtd=smcmax
+                smcwtd=smcmaxdeep
                 totwater=totwater-maxwatup
                 do k=nsoil,0,-1
                     wtd=zsoil(k)
                     iwtd=k-1
                     if(k.eq.0)exit
-                    maxwatup=dzs(k)*(smcmax-smc(k))
+                    maxwatup=dzs(k)*(smcmax(k)-smc(k))
                     if(totwater.le.maxwatup)then
-                     smc(k) = min(smc(k) + totwater / dzs(k),smcmax)
+                     smc(k) = min(smc(k) + totwater / dzs(k),smcmax(k))
                      if(smc(k).gt.smceq(k))wtd = min ( ( smc(k)*dzs(k) &
-                        - smceq(k)*zsoil(iwtd) + smcmax*zsoil(k) ) / &
-                           ( smcmax-smceq(k) ) , zsoil(iwtd) )
+                        - smceq(k)*zsoil(iwtd) + smcmax(k)*zsoil(k) ) / &
+                           ( smcmax(k)-smceq(k) ) , zsoil(iwtd) )
                      totwater=0.
                      exit
                     else
-                     smc(k) = smcmax
+                     smc(k) = smcmax(k)
                      totwater=totwater-maxwatup
                     endif
                 enddo
@@ -540,9 +618,9 @@ IF(totwater.gt.0.)then
 !deep water table
        else
 
-            maxwatup=(smcmax-smcwtd)*(zsoil(nsoil)-dzs(nsoil)-wtd)
+            maxwatup=(smcmaxdeep-smcwtd)*(zsoil(nsoil)-dzs(nsoil)-wtd)
             if(totwater.le.maxwatup)then
-               wtd = wtd + totwater/(smcmax-smcwtd)
+               wtd = wtd + totwater/(smcmaxdeep-smcwtd)
                totwater=0.
                !IF (ILOC == 25) THEN
                !  IF (JLOC == 12) THEN
@@ -552,40 +630,40 @@ IF(totwater.gt.0.)then
             else
                totwater=totwater-maxwatup
                wtd=zsoil(nsoil)-dzs(nsoil)
-               maxwatup=(smcmax-smcwtd)*dzs(nsoil)
+               maxwatup=(smcmaxdeep-smcwtd)*dzs(nsoil)
               if(totwater.le.maxwatup)then
 
             !gmmequilibrium soil moisture content
-               smceqdeep = smcmax * ( psisat / &
-                           (psisat - dzs(nsoil)) ) ** (1./bexp)
+               smceqdeep = smcmaxdeep * ( psisatdeep / &
+                           (psisatdeep - dzs(nsoil)) ) ** (1./bexp)
 !               smceqdeep = max(smceqdeep,smcwlt)
                smceqdeep = max(smceqdeep,1.E-4)
 
                 smcwtd = smcwtd + totwater / dzs(nsoil)
-                smcwtd = min(smcwtd,smcmax)
+                smcwtd = min(smcwtd,smcmaxdeep)
                 wtd = ( smcwtd*dzs(nsoil) &
-                 - smceqdeep*zsoil(nsoil) + smcmax*(zsoil(nsoil)-dzs(nsoil)) ) / &
-                     ( smcmax-smceqdeep )
+                 - smceqdeep*zsoil(nsoil) + smcmaxdeep*(zsoil(nsoil)-dzs(nsoil)) ) / &
+                     ( smcmaxdeep-smceqdeep )
                 totwater=0.
               else
-                smcwtd=smcmax
+                smcwtd=smcmaxdeep
                 totwater=totwater-maxwatup
                 do k=nsoil,0,-1
                     wtd=zsoil(k)
                     iwtd=k-1
                     if(k.eq.0)exit
-                    maxwatup=dzs(k)*(smcmax-smc(k))
+                    maxwatup=dzs(k)*(smcmax(k)-smc(k))
 
                     if(totwater.le.maxwatup)then
                      smc(k) = smc(k) + totwater / dzs(k)
-                     smc(k) = min(smc(k),smcmax)
+                     smc(k) = min(smc(k),smcmax(k))
                      if(smc(k).gt.smceq(k))wtd = ( smc(k)*dzs(k) &
-                        - smceq(k)*zsoil(iwtd) + smcmax*zsoil(k) ) / &
-                           ( smcmax-smceq(k) )
+                        - smceq(k)*zsoil(iwtd) + smcmax(k)*zsoil(k) ) / &
+                           ( smcmax(k)-smceq(k) )
                      totwater=0.
                      exit
                     else
-                     smc(k) = smcmax
+                     smc(k) = smcmax(k)
                      totwater=totwater-maxwatup
                     endif
                    enddo
@@ -617,8 +695,8 @@ ELSEIF(totwater.lt.0.)then
                         smc(kwtd) = smc(kwtd) + totwater / dzs(kwtd)
                         if(smc(kwtd).gt.smceq(kwtd))then
                               wtd = ( smc(kwtd)*dzs(kwtd) &
-                                 - smceq(kwtd)*zsoil(iwtd) + smcmax*zsoil(kwtd) ) / &
-                                 ( smcmax-smceq(kwtd) )
+                                 - smceq(kwtd)*zsoil(iwtd) + smcmax(kwtd)*zsoil(kwtd) ) / &
+                                 ( smcmax(kwtd)-smceq(kwtd) )
                          else
                               wtd=zsoil(kwtd)
                               iwtd=iwtd+1
@@ -638,8 +716,8 @@ ELSEIF(totwater.lt.0.)then
 
                if(iwtd.eq.nsoil.and.totwater.lt.0.)then
             !gmmequilibrium soil moisture content
-               smceqdeep = smcmax * ( psisat / &
-                           (psisat - dzs(nsoil)) ) ** (1./bexp)
+               smceqdeep = smcmaxdeep * ( psisatdeep / &
+                           (psisatdeep - dzs(nsoil)) ) ** (1./bexp)
 !               smceqdeep = max(smceqdeep,smcwlt)
                smceqdeep = max(smceqdeep,1.E-4)
 
@@ -649,15 +727,15 @@ ELSEIF(totwater.lt.0.)then
 
                        smcwtd = smcwtd + totwater / dzs(nsoil)
                        wtd = max( ( smcwtd*dzs(nsoil) &
-                           - smceqdeep*zsoil(nsoil) + smcmax*(zsoil(nsoil)-dzs(nsoil)) ) / &
-                            ( smcmax-smceqdeep ) , zsoil(nsoil)-dzs(nsoil) )
+                           - smceqdeep*zsoil(nsoil) + smcmaxdeep*(zsoil(nsoil)-dzs(nsoil)) ) / &
+                            ( smcmaxdeep-smceqdeep ) , zsoil(nsoil)-dzs(nsoil) )
 
                   else
 
                        wtd=zsoil(nsoil)-dzs(nsoil)
                        smcwtd = smcwtd + totwater / dzs(nsoil)
 !and now even further down
-                       dzup=(smceqdeep-smcwtd)*dzs(nsoil)/(smcmax-smceqdeep)
+                       dzup=(smceqdeep-smcwtd)*dzs(nsoil)/(smcmaxdeep-smceqdeep)
                        wtd=wtd-dzup
                        smcwtd=smceqdeep
 
@@ -666,13 +744,12 @@ ELSEIF(totwater.lt.0.)then
                 endif
 
 
-
         elseif(wtd.ge.zsoil(nsoil)-dzs(nsoil))then
-
+! Different from Noah-MP HRLDAS; updated terms
 !if wtd was already below the bottom of the resolved soil crust
             !gmmequilibrium soil moisture content
-               smceqdeep = smcmax * ( psisat / &
-                           (psisat - dzs(nsoil)) ) ** (1./bexp)
+               smceqdeep = smcmaxdeep * ( psisatdeep / &    !TML: not included in HRLDAS; used deep soil terms here...
+                           (psisatdeep - dzs(nsoil)) ) ** (1./bexp)
 !               smceqdeep = max(smceqdeep,smcwlt)
                smceqdeep = max(smceqdeep,1.E-4)
 
@@ -682,15 +759,15 @@ ELSEIF(totwater.lt.0.)then
 
                smcwtd = smcwtd + totwater / dzs(nsoil)
                wtd = max( ( smcwtd*dzs(nsoil) &
-                    - smceqdeep*zsoil(nsoil) + smcmax*(zsoil(nsoil)-dzs(nsoil)) ) / &
-                    ( smcmax-smceqdeep ) , zsoil(nsoil)-dzs(nsoil) )
+                    - smceqdeep*zsoil(nsoil) + smcmaxdeep*(zsoil(nsoil)-dzs(nsoil)) ) / &
+                    ( smcmaxdeep-smceqdeep ) , zsoil(nsoil)-dzs(nsoil) )
 
             else
 
                wtd=zsoil(nsoil)-dzs(nsoil)
                smcwtd = smcwtd + totwater / dzs(nsoil)
 !and now even further down
-               dzup=(smceqdeep-smcwtd)*dzs(nsoil)/(smcmax-smceqdeep)
+               dzup=(smceqdeep-smcwtd)*dzs(nsoil)/(smcmaxdeep-smceqdeep)
                wtd=wtd-dzup
                smcwtd=smceqdeep
 
@@ -698,11 +775,11 @@ ELSEIF(totwater.lt.0.)then
 
          else
 !gmmequilibrium soil moisture content
-               wgpmid = smcmax * ( psisat / &
-                    (psisat - (zsoil(nsoil)-wtd)) ) ** (1./bexp)
+               wgpmid = smcmaxdeep * ( psisatdeep / &
+                    (psisatdeep - (zsoil(nsoil)-wtd)) ) ** (1./bexp)
 !               wgpmid=max(wgpmid,smcwlt)
                wgpmid=max(wgpmid,1.E-4)
-               syielddw=smcmax-wgpmid
+               syielddw=smcmaxdeep-wgpmid
                wtdold=wtd
                wtd = wtdold + totwater/syielddw
 !update wtdwgp
@@ -711,6 +788,7 @@ ELSEIF(totwater.lt.0.)then
           endif
 
           qspring=0.
+
 
 ENDIF
 

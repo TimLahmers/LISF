@@ -645,8 +645,7 @@ subroutine NoahMP401_main(n)
             tmp_sfcheadrt       = NoahMP401_struc(n)%noahmp401(t)%sfcheadrt
 
 ! Get Root Zone Variables:
-            if(NOAHMP401_struc(n)%root_opt .eq. 2) then
-              if(NOAHMP401_struc(n)%run_opt .eq. 5) then
+            if(NOAHMP401_struc(n)%run_opt .eq. 5) then
                 min_row = noahmp401_struc(n)%row_min
                 max_row = noahmp401_struc(n)%row_max
                 min_col = noahmp401_struc(n)%col_min
@@ -667,18 +666,22 @@ subroutine NoahMP401_main(n)
                   write(LIS_logunit,*)'[ERR] Root Zone FDEPTH not found; exit.'
                   call LIS_endrun()
                 endif
-              else
-                write(LIS_logunit,*)'[ERR] UIUC Root Zone Requires Runoff Opt 5.'
-                call LIS_endrun()
-              endif
-              tmp_easy         = NOAHMP401_struc(n)%noahmp401(t)%easy
-              tmp_rootactivity = NOAHMP401_struc(n)%noahmp401(t)%rootactivity
-              tmp_inactive     = NOAHMP401_struc(n)%noahmp401(t)%inactive
-              tmp_kroot        = NOAHMP401_struc(n)%noahmp401(t)%kroot
-              tmp_kwtd         = NOAHMP401_struc(n)%noahmp401(t)%kwtd
-              tmp_psi          = NOAHMP401_struc(n)%noahmp401(t)%psi
-              tmp_gwrd         = NOAHMP401_struc(n)%noahmp401(t)%gwrd
-              tmp_btrani       = NOAHMP401_struc(n)%noahmp401(t)%btrani
+            else
+                tmp_fdepth_col = 100.0 !Set e-folding to value for water if mmf not used...
+            endif
+            if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+                tmp_easy         = NOAHMP401_struc(n)%noahmp401(t)%easy
+                tmp_rootactivity = NOAHMP401_struc(n)%noahmp401(t)%rootactivity
+                tmp_inactive     = NOAHMP401_struc(n)%noahmp401(t)%inactive
+                tmp_kroot        = NOAHMP401_struc(n)%noahmp401(t)%kroot
+                tmp_kwtd         = NOAHMP401_struc(n)%noahmp401(t)%kwtd
+                tmp_psi          = NOAHMP401_struc(n)%noahmp401(t)%psi
+                tmp_gwrd         = NOAHMP401_struc(n)%noahmp401(t)%gwrd
+                tmp_btrani       = NOAHMP401_struc(n)%noahmp401(t)%btrani
+                if(NOAHMP401_struc(n)%run_opt .ne. 5) then
+                    write(LIS_logunit,*)'[ERR] UIUC Root Zone Requires Runoff Opt 5.'
+                    call LIS_endrun()
+                endif
             endif
 ! Calculate water storages at start of timestep
             startsm = 0.0
@@ -689,6 +692,11 @@ subroutine NoahMP401_main(n)
             startswe = tmp_sneqv
             startint = tmp_canliq + tmp_canice
             startgw  = tmp_wa
+
+            !row = LIS_surface(n, LIS_rc%lsm_index)%tile(t)%row
+            !col = LIS_surface(n, LIS_rc%lsm_index)%tile(t)%col
+            !print *, "I: ",col
+            !print *, "J: ",row
 
             ! call model physics
             call noahmp_driver_401(n                     , & ! in    - nest id [-]

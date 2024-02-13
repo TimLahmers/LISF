@@ -465,6 +465,14 @@ subroutine NoahMP401_readrst()
                 enddo
 
             endif
+
+            !TML Root Zone Scheme
+            if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+                call LIS_readvar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%inactive, &
+                                         varname="INACTIVE", wformat=wformat)
+                call LIS_readvar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%kroot, &
+                                         varname="KROOT", wformat=wformat)
+            endif
         
             ! close restart file
             if(wformat .eq. "binary") then
