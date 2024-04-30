@@ -49,6 +49,8 @@ subroutine noahmp401_getrunoffs_hymap2(n)
   real, allocatable          :: runoff2_t(:)
   real, allocatable          :: runoff3_t(:)  
 
+  real, allocatable          :: runoff_lsm(:)
+
   !ag (25Apr2017)
   type(ESMF_Field)       :: evapotranspiration_Field
   real,pointer           :: evapotranspiration(:)
@@ -56,12 +58,19 @@ subroutine noahmp401_getrunoffs_hymap2(n)
   real, allocatable      :: evapotranspiration1_t(:)
   integer                :: evapflag
 
+  character(30)      :: yfile
+  character(4)       :: yr
+  character(2)       :: mo,da,hr,mn
+  character(1)       :: temp
+
   allocate(runoff1(LIS_rc%npatch(n,LIS_rc%lsm_index)))
   allocate(runoff2(LIS_rc%npatch(n,LIS_rc%lsm_index)))
   allocate(runoff3(LIS_rc%npatch(n,LIS_rc%lsm_index)))
   allocate(runoff1_t(LIS_rc%ntiles(n)))
   allocate(runoff2_t(LIS_rc%ntiles(n)))
   allocate(runoff3_t(LIS_rc%ntiles(n)))
+
+  allocate(runoff_lsm(LIS_rc%ntiles(n)))
 
   runoff1_t = -9999.0
   runoff2_t = -9999.0
@@ -95,10 +104,12 @@ subroutine noahmp401_getrunoffs_hymap2(n)
   call ESMF_FieldGet(baseflow_field,localDE=0,farrayPtr=baseflow,rc=status)
   call LIS_verify(status,'ESMF_FieldGet failed for Subsurface Runoff')
 
+  !remove runoff 3, use if-statement to use qsb or qrf...
   do t=1, LIS_rc%npatch(n,LIS_rc%lsm_index)  !units?
      runoff1(t) = NOAHMP401_struc(n)%noahmp401(t)%runsf
      runoff2(t) = NOAHMP401_struc(n)%noahmp401(t)%runsb
      if(NOAHMP401_struc(n)%run_opt .eq. 5) then
+         runoff2(t) = 0.0
          runoff3(t) = noahmp401_struc(n)%noahmp401(t)%qrf 
      else
          runoff3(t) = 0.0
@@ -119,12 +130,80 @@ subroutine noahmp401_getrunoffs_hymap2(n)
   baseflow = runoff2_t
   qrf = runoff3_t
 
+! Print HyMAP 2-way-cpl variables to ensure correct dimensions...
+#if (defined SPMD)
+        if ( LIS_masterproc ) then
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff_lsm_dmp.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) runoff_lsm
+        !close(1)
+        endif
+#else
+        write(yr,'(i4)') LIS_rc%yr
+        if (LIS_rc%mo.ge.10) then
+            write(mo,'(i2)') LIS_rc%mo
+        else
+            write(temp,'(i1)') LIS_rc%mo
+            mo = "0"//temp
+        endif
+        if (LIS_rc%da.ge.10) then
+            write(da,'(i2)') LIS_rc%da
+        else
+            write(temp,'(i1)') LIS_rc%da
+            da = "0"//temp
+        endif
+        if (LIS_rc%hr.ge.10) then
+            write(hr,'(i2)') LIS_rc%hr
+        else
+            write(temp,'(i1)') LIS_rc%hr
+            hr = "0"//temp
+        endif
+        if (LIS_rc%mn.ge.10) then
+            write(mn,'(i2)') LIS_rc%mn
+        else
+            write(temp,'(i1)') LIS_rc%mn
+            mn = "0"//temp
+        endif
+        yfile = yr//mo//da//hr//mn//"runoff_lsm_ser.txt"
+        !open(1,file=yfile, form='unformatted')
+        !write(1) runoff_lsm
+        !close(1)
+#endif
+
+
   deallocate(runoff1)
   deallocate(runoff2)
   deallocate(runoff3)
   deallocate(runoff1_t)
   deallocate(runoff2_t)
   deallocate(runoff3_t)
+
+  deallocate(runoff_lsm)
 
   !ag (05Jun2017)
   !Including meteorological forcings + evapotranspiration for computing evaporation from open waters in HyMAP2)
