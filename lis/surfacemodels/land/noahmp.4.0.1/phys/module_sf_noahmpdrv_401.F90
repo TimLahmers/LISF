@@ -2476,7 +2476,7 @@ EQWTD=WTD
           IF(LANDMASK(I,J).GT.0)THEN
              DKSAT  =   DKSAT_TABLE(ISLTYP(I,J))
              IF(CHANOPT .EQ. 1) THEN
-               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT ! Derive Conductivity w/HyMAP+Noah-MP Param.
+               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT !*0.5 ! Derive Conductivity w/HyMAP+Noah-MP Param.
              ELSE
                IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
                  RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))

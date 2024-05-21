@@ -130,7 +130,7 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
           IF(LANDMASK(I,J).GT.0)THEN
              DKSAT  = DKSAT_TABLE  (ISLTYP(I,J))
              IF(CHANOPT .EQ. 1) THEN
-               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT ! Derive Conductivity w/HyMAP+Noah-MP Param.
+               RCOND = CLENGTH(I,J)*CWIDTH(I,J)*DKSAT !*0.5 ! Derive Conductivity w/HyMAP+Noah-MP Param.
              ELSE
                IF(WTD(I,J) .GT. RIVERBED(I,J) .AND.  EQWTD(I,J) .GT. RIVERBED(I,J)) THEN
                  RCOND = RIVERCOND(I,J) * EXP(PEXP(I,J)*(WTD(I,J)-EQWTD(I,J)))
@@ -140,9 +140,10 @@ CALL LATERALFLOW(ISLTYP,WTD,QLAT,FDEPTH,TOPO,LANDMASK,DELTAT,AREA       &
              ENDIF
              IF(CHANOPT .EQ. 1  .AND. ENABLE2WAYCPL .EQ. 3) THEN !TML: HyMAP Chan. + 2-way Cpl.
                DPH = min(RIVDPH2D(I,J),(TOPO(I,J)-RIVERBED(I,J)))
+               !print*, "DPH:  ", DPH
                QRF(I,J) = RCOND * (WTD(I,J)-(RIVERBED(I,J)+DPH)) * DELTAT/AREA(I,J)
                IF( (QRF(I,J) .LT. 0.0) .AND. (QRF(I,J) + RIVSTO2D(I,J) .LE. 0.0)) THEN !Prevent infiltration (channel loss) from exceeding storage
-                 QRF(I,J) = -1.0*RIVSTO2D(I,J) 
+                 QRF(I,J) = -1.0*RIVSTO2D(I,J)
                ENDIF
              ELSE
                QRF(I,J) = RCOND * (WTD(I,J)-RIVERBED(I,J)) * DELTAT/AREA(I,J)

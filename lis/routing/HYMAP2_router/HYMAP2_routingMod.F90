@@ -265,13 +265,10 @@ contains
     type(ESMF_ArraySpec) :: realarrspec
     type(ESMF_Field)     :: sf_runoff_field
     type(ESMF_Field)     :: baseflow_field
-    type(ESMF_Field)     :: qrf_field
-    !TML: Add QRF ESMF field, same for runoff/baseflow
     type(ESMF_Field)     :: evapotranspiration_field
     !type(ESMF_Field)     :: potential_evaporation_field
     real, pointer        :: sfrunoff(:)
     real, pointer        :: baseflow(:)
-    real, pointer        :: qrf(:)
     real, pointer        :: evapotranspiration(:)
     !real, pointer        :: potevap(:)
     character*100        :: ctitle
@@ -363,7 +360,7 @@ contains
        HYMAP2_routing_struc(n)%fileopen = 0 
        HYMAP2_routing_struc(n)%dt_proc  = 0.
     enddo
-       
+
     !ag (12Sep2019)
     call ESMF_ConfigFindLabel(LIS_config,&
          "HYMAP2 enable 2-way coupling:",rc=status)
@@ -1658,10 +1655,6 @@ contains
             grid=LIS_vecTile(n), name="Surface Runoff",rc=status)
        call LIS_verify(status, 'ESMF_FieldCreate failed')
 
-       qrf_field =ESMF_FieldCreate(arrayspec=realarrspec,&
-            grid=LIS_vecTile(n), name="Groundwater River Water Flux",rc=status)
-       call LIS_verify(status, 'ESMF_FieldCreate failed')
-
        baseflow_field =ESMF_FieldCreate(arrayspec=realarrspec,&
             grid=LIS_vecTile(n), name="Subsurface Runoff",rc=status)
        call LIS_verify(status, 'ESMF_FieldCreate failed')
@@ -1671,11 +1664,6 @@ contains
        call LIS_verify(status)
        sfrunoff = 0.0 
 
-       call ESMF_FieldGet(qrf_field,localDE=0,farrayPtr=qrf,&
-            rc=status)
-       call LIS_verify(status)
-       qrf = 0.0 
-
        call ESMF_FieldGet(baseflow_field,localDE=0,farrayPtr=baseflow,&
             rc=status)
        call LIS_verify(status)
@@ -1683,9 +1671,6 @@ contains
 
        call ESMF_stateAdd(LIS_runoff_state(n),(/sf_runoff_field/),rc=status)
        call LIS_verify(status, 'ESMF_StateAdd failed for surface runoff')
-
-       call ESMF_stateAdd(LIS_runoff_state(n),(/qrf_field/),rc=status)
-       call LIS_verify(status, 'ESMF_StateAdd failed for groundwater river water flux')
 
        call ESMF_stateAdd(LIS_runoff_state(n),(/baseflow_field/),rc=status)
        call LIS_verify(status, 'ESMF_StateAdd failed for base flow')

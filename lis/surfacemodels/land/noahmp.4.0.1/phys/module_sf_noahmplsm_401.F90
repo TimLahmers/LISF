@@ -8180,7 +8180,7 @@ ENDIF   ! CROPTYPE == 0
   IF(OPT_RUN == 5) THEN
 
 !update smcwtd
-
+!TML: Important: DEEPRECH gets updated based on QDRAIN...
      IF(ZWT < ZSOIL(NSOIL)-DZSNSO(NSOIL))THEN
 !accumulate qdrain to update deep water table and soil moisture later
         DEEPRECH =  DEEPRECH + DT * QDRAIN

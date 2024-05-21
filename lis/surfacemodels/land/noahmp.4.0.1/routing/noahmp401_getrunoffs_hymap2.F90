@@ -34,20 +34,16 @@ subroutine noahmp401_getrunoffs_hymap2(n)
 ! 
 !EOP
   type(ESMF_Field)       :: sfrunoff_field
-  type(ESMF_Field)       :: qrf_field
   type(ESMF_Field)       :: baseflow_field
   real, pointer          :: sfrunoff(:)
-  real, pointer          :: qrf(:)
   real, pointer          :: baseflow(:)
   integer                :: t
   integer                :: c,r
   integer                :: status
   real, allocatable          :: runoff1(:)
   real, allocatable          :: runoff2(:)
-  real, allocatable          :: runoff3(:)
   real, allocatable          :: runoff1_t(:)
   real, allocatable          :: runoff2_t(:)
-  real, allocatable          :: runoff3_t(:)  
 
   real, allocatable          :: runoff_lsm(:)
 
@@ -65,16 +61,13 @@ subroutine noahmp401_getrunoffs_hymap2(n)
 
   allocate(runoff1(LIS_rc%npatch(n,LIS_rc%lsm_index)))
   allocate(runoff2(LIS_rc%npatch(n,LIS_rc%lsm_index)))
-  allocate(runoff3(LIS_rc%npatch(n,LIS_rc%lsm_index)))
   allocate(runoff1_t(LIS_rc%ntiles(n)))
   allocate(runoff2_t(LIS_rc%ntiles(n)))
-  allocate(runoff3_t(LIS_rc%ntiles(n)))
 
   allocate(runoff_lsm(LIS_rc%ntiles(n)))
 
   runoff1_t = -9999.0
   runoff2_t = -9999.0
-  runoff3_t = -9999.0
 
   call ESMF_AttributeGet(LIS_runoff_state(n),"Routing model evaporation option",&
        evapflag, rc=status)
@@ -87,10 +80,6 @@ subroutine noahmp401_getrunoffs_hymap2(n)
        sfrunoff_field,rc=status)
   call LIS_verify(status,'ESMF_StateGet failed for Surface Runoff')
 
-  call ESMF_StateGet(LIS_runoff_state(n),"Groundwater River Water Flux",&
-       qrf_field,rc=status)
-  call LIS_verify(status,'ESMF_StateGet failed for Groundwater River Water Flux')
-
   call ESMF_StateGet(LIS_runoff_state(n),"Subsurface Runoff",&
        baseflow_field,rc=status)
   call LIS_verify(status,'ESMF_StateGet failed for Subsurface Runoff')
@@ -98,21 +87,16 @@ subroutine noahmp401_getrunoffs_hymap2(n)
   call ESMF_FieldGet(sfrunoff_field,localDE=0,farrayPtr=sfrunoff,rc=status)
   call LIS_verify(status,'ESMF_FieldGet failed for Surface Runoff')
 
-  call ESMF_FieldGet(qrf_field,localDE=0,farrayPtr=qrf,rc=status)
-  call LIS_verify(status,'ESMF_FieldGet failed for Groundwater River Water Flux')
-  
   call ESMF_FieldGet(baseflow_field,localDE=0,farrayPtr=baseflow,rc=status)
   call LIS_verify(status,'ESMF_FieldGet failed for Subsurface Runoff')
 
-  !remove runoff 3, use if-statement to use qsb or qrf...
+  !Use if-statement to use qsb or qrf...
   do t=1, LIS_rc%npatch(n,LIS_rc%lsm_index)  !units?
      runoff1(t) = NOAHMP401_struc(n)%noahmp401(t)%runsf
-     runoff2(t) = NOAHMP401_struc(n)%noahmp401(t)%runsb
      if(NOAHMP401_struc(n)%run_opt .eq. 5) then
-         runoff2(t) = 0.0
-         runoff3(t) = noahmp401_struc(n)%noahmp401(t)%qrf 
+         runoff2(t) = noahmp401_struc(n)%noahmp401(t)%qrf 
      else
-         runoff3(t) = 0.0
+         runoff2(t) = NOAHMP401_struc(n)%noahmp401(t)%runsb
      endif
   enddo
 
@@ -120,15 +104,12 @@ subroutine noahmp401_getrunoffs_hymap2(n)
 
   runoff1_t = LIS_rc%udef
   runoff2_t = LIS_rc%udef
-  runoff3_t = LIS_rc%udef
 
   call LIS_patch2tile(n,1,runoff1_t, runoff1)
   call LIS_patch2tile(n,1,runoff2_t, runoff2)
-  call LIS_patch2tile(n,1,runoff3_t, runoff3)
 
   sfrunoff = runoff1_t
   baseflow = runoff2_t
-  qrf = runoff3_t
 
 ! Print HyMAP 2-way-cpl variables to ensure correct dimensions...
 #if (defined SPMD)
@@ -198,10 +179,8 @@ subroutine noahmp401_getrunoffs_hymap2(n)
 
   deallocate(runoff1)
   deallocate(runoff2)
-  deallocate(runoff3)
   deallocate(runoff1_t)
   deallocate(runoff2_t)
-  deallocate(runoff3_t)
 
   deallocate(runoff_lsm)
 
