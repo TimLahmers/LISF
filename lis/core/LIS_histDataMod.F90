@@ -488,7 +488,7 @@ module LIS_histDataMod
   !public ::   LIS_MOC_SNOWWIND_DIR
 
   ! MMF SW
-  !public :: LIS_MOC_SMCWTD 
+  public :: LIS_MOC_SMCWTD 
   public :: LIS_MOC_QRF
   public :: LIS_MOC_QRFS
   public :: LIS_MOC_QSPRING
@@ -497,7 +497,7 @@ module LIS_histDataMod
   public :: LIS_MOC_RECH
   public :: LIS_MOC_WTD
   public :: LIS_MOC_DEEPRECH
-  !integer :: LIS_MOC_SMCWTD =  -9999
+  integer :: LIS_MOC_SMCWTD =  -9999
   integer :: LIS_MOC_QRF = -9999
   integer :: LIS_MOC_QRFS = -9999
   integer :: LIS_MOC_DEEPRECH = -9999
@@ -1218,17 +1218,17 @@ contains
 ! read the meta data attributes for each variable
 !-------------------------------------------------------------------------
   !!! MMF scheme 
-    !call ESMF_ConfigFindLabel(modelSpecConfig,"SmcWtd:",rc=rc)
-    !call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
-    !     "SmcWtd",&
-    !     "soil_moisture_between_bottom_of_the_soil_and_the_water_table",&
-    !     "soil moisture between bottom of the soil and the water table",rc)
-    !if ( rc == 1 ) then
-    !   call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_SMCWTD,&
-    !        LIS_histData(n)%head_lsm_list,&
-    !        n,1,ntiles,(/"m3/m3"/),1,(/"-"/),1,112,0,&
-    !        model_patch=.true.)
-    !endif
+    call ESMF_ConfigFindLabel(modelSpecConfig,"SmcWtd:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "SmcWtd",&
+         "soil_moisture_between_bottom_of_the_soil_and_the_water_table",&
+         "soil moisture between bottom of the soil and the water table",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_SMCWTD,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"m3/m3"/),1,(/"-"/),1,112,0,&
+            model_patch=.true.)
+    endif
     
     call ESMF_ConfigFindLabel(modelSpecConfig,"Qrf:",rc=rc)
     call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &

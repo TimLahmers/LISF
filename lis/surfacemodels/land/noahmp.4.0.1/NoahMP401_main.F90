@@ -1779,6 +1779,11 @@ subroutine NoahMP401_main(n)
             call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_RECH, value = NOAHMP401_struc(n)%noahmp401(t)%rech, &
                   vlevel=1, unit="mm", direction="-", surface_type = LIS_rc%lsm_index)
 
+            ![ 102] Smcwtd - Soil volumetric water between bottom of the soil and water table  (for MMF Groundwater) - (unit=m3/m3) 
+            call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_SMCWTD, value = NOAHMP401_struc(n)%noahmp401(t)%smcwtd, &
+                  vlevel=1, unit="m^3 m-3", direction="-", surface_type = LIS_rc%lsm_index)
+
+
 ! Added water balance change terms - David Mocko
             endsm = 0.0
             do i = 1,tmp_nsoil
