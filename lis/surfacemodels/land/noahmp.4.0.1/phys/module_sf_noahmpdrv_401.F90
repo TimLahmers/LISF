@@ -1142,6 +1142,7 @@ CONTAINS
             QC      , SWDN    , LWDN    ,                               & ! IN : Forcing
 	    PRCPCONV, PRCPNONC, PRCPSHCV, PRCPSNOW, PRCPGRPL, PRCPHAIL, & ! IN : Forcing
             TBOT    , CO2PP   , O2PP    , FOLN    , FICEOLD , Z_ML    , & ! IN : Forcing
+            PRINTDEBUG,       &
             ALBOLD  , SNEQVO  ,                                         & ! IN/OUT : 
             STC     , SMH2O   , SMC     , TAH     , EAH     , FWET    , & ! IN/OUT : 
             CANLIQ  , CANICE  , TV      , TG      , QSFC1D  , QSNOW   , & ! IN/OUT : 
@@ -2454,7 +2455,7 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
 ! local
     INTEGER  :: I,J,K,ITER,itf,jtf, NITER, NCOUNT,NS
     REAL :: BEXP
-    REAL :: FRLIQ,SMCEQDEEP,SMCMAXDEEP,DKSATDEEP,PSISATDEEP ! Soil parameters for deep variably thick layer
+    REAL :: FRLIQ,SMCEQDEEP,SMCMAXDEEP,SMCWLTDEEP,DKSATDEEP,PSISATDEEP ! Soil parameters for deep variably thick layer
     REAL :: SMCBELOW, FK, mid ! Needed to initialize deep soil layers
     REAL                                :: SMCMAXtop
     REAL                                :: PSISATtop
@@ -2495,7 +2496,7 @@ SUBROUTINE PEDOTRANSFER_SR2006(nsoil,sand,clay,orgm,parameters)
          LANDMASK=-1
     ENDWHERE
     
-    PEXP = 1.0
+    PEXP = 0.0 !Set to zero, consider changing this in other configurations
 
     DELTAT=365.*24*3600. !1 year
 
@@ -2592,6 +2593,12 @@ EQWTD=WTD
                DDZ=0.
         ENDIF
 
+        ! TML: Constrain PEXP for deeper groundwater
+        IF (EQWTD(I,J) .LT. ZSOIL(NSOIL)) THEN
+            PEXP(I,J) = 0.0
+        ELSE
+            PEXP(I,J) = 1.0
+        ENDIF
 
         TOTWATER = AREA(I,J)*(QLAT(I,J)+RECHCLIM(I,J)*0.001)/DELTAT
         !print *,"AREA     = ",AREA(I,J)
@@ -2609,6 +2616,10 @@ EQWTD=WTD
               !IF (RIVERCOND(I,J) .GT. 1.0) THEN
               !    print *,"I =         ",I
               !    print *,"J =         ",J
+              !    print *,"TOTWATER =  ",TOTWATER
+              !    print *,"QLAT =      ",QLAT(I,J)
+              !    print *,"RECHCLIM =  ",RECHCLIM(I,J)*0.001
+              !    print *,"DDZ =       ",DDZ
               !    print *,"RIVERCOND = ",RIVERCOND(I,J)
               !    !debug = EQWTD(I,J)/0.  !Intentionally Crash Code To Stop totalview...
               !ENDIF
@@ -2619,6 +2630,16 @@ EQWTD=WTD
 !make riverbed to be height down from the surface instead of above sea level
 
     RIVERBED = min( RIVERBED-TOPO, 0.)
+
+!TML: constrain PEXP if RIVERBED is low...
+
+    DO J=jts,jtf
+       DO I=its,itf
+           IF (RIVERBED(I,J) .LT. ZSOIL(NSOIL)) THEN
+               PEXP(I,J) = 0.0
+           ENDIF
+       ENDDO
+    ENDDO
 
 !now recompute lateral flow and flow to rivers to initialize deep soil moisture
 
@@ -2697,6 +2718,7 @@ EQWTD=WTD
              ! For deep variably thick layer
              PSISATDEEP  = -PSISATtop * min(max(exp(-(intdepth+1.5)/FDEPTH(I,J)),1.),  10.) 
              SMCMAXDEEP  = SMCMAXtop  * max(min(exp((intdepth+1.5)/FDEPTH(I,J)),1.), 0.1) 
+             SMCWLTDEEP  = SMCWLTtop  * max(min(exp((intdepth+1.5)/FDEPTH(I,J)),1.), 0.1)
              DKSATDEEP   = DKSATtop   * max(min(exp((intdepth+1.5)/FDEPTH(I,J)),1.), 0.1) 
 
              ! TML: Not needed because SMC parameters are now set from global parameters
@@ -2724,6 +2746,7 @@ EQWTD=WTD
                          FLUX = (QLAT(I,J)-QRF(I,J))/DELTAT
 
                          SMC = 0.5 * SMCMAXDEEP
+                         !SMC = 0.5*(SMCMAXDEEP+SMCWLTDEEP)
 
                          DO ITER = 1, 100
                            DD = (SMC+SMCMAXDEEP)/(2.*SMCMAXDEEP)
@@ -2746,8 +2769,8 @@ EQWTD=WTD
                   !print *, "INIT: WTD(I,J) < ZSOIL(NSOIL)-DZS(NSOIL)"
              ELSEIF(WTD(I,J) < ZSOIL(NSOIL))THEN
                   SMCEQDEEP = SMCMAX(NSOIL) * ( PSISAT(NSOIL) / ( PSISAT(NSOIL) - DZS(NSOIL) ) ) ** (1./BEXP)
-!                  SMCEQDEEP = MAX(SMCEQDEEP,SMCWLT)
-                  SMCEQDEEP = MAX(SMCEQDEEP,1.E-4)
+                  SMCEQDEEP = MAX(SMCEQDEEP,SMCWLTDEEP) !TML: Constrain equilibrium with wilting point of deep layer...
+                  !SMCEQDEEP = MAX(SMCEQDEEP,1.E-4)
                   SMCWTDXY(I,J) = SMCMAXDEEP * ((WTD(I,J) - (ZSOIL(NSOIL)-DZS(NSOIL)))/DZS(NSOIL)) + &
                                   SMCEQDEEP * ((ZSOIL(NSOIL) - WTD(I,J))/DZS(NSOIL))
                   !SMCWTDXY(I,J) = MIN(SMCMAXDEEP,SMCWTDXY(I,J))
@@ -2793,6 +2816,7 @@ EQWTD=WTD
                     ENDIF
                    ! First guess for SMC
                     SMC = 0.5 * SMCMAX(K)
+                   ! SMC = 0.5 * (SMCMAX(K) + SMCWLT(K))
                    ! Newton-Raphson iteration assuming vertical flux = 0
                     DO ITER = 1, 100
                       FUNC  = (SMC - SMCBELOW) * AA + BB * SMC ** EXPON ! Original expression 
@@ -2801,7 +2825,7 @@ EQWTD=WTD
                       SMC = SMC - DX       ! Get new value for SMC
                       IF ( ABS (DX) < 1.E-6)EXIT  ! Exit once DX is sufficiently small
                     ENDDO
-                    SMOIS(I,K,J) = MAX(SMC,1.E-4)
+                    SMOIS(I,K,J) = MAX(SMC,SMCWLT(K))
                  ENDDO
              ! Fill in SM where water table is within resolved soil layers
              ELSEIF (WTD(I,J) .GE. ZSOIL(NSOIL)) THEN 
@@ -2826,6 +2850,7 @@ EQWTD=WTD
                         BB    = DKSAT(K) / SMCMAX(K) ** EXPON
                         SMCBELOW = SMOIS(I, NS+1 , J)
                         SMC = 0.5 * SMCMAX(K) ! First guess
+                        !SMC = 0.5 * (SMCMAX(K) + SMCWLT(K))
                         DO ITER = 1, 100
                           FUNC  = (SMC - SMCBELOW) * AA +  BB * SMC ** EXPON ! Original expression
                           DFUNC = AA + BB * EXPON * SMC ** BEXP ! Derivative of FUNC
@@ -2833,7 +2858,7 @@ EQWTD=WTD
                           SMC = SMC - DX   ! Get new value for SMC
                           IF ( ABS (DX) < 1.E-6)EXIT ! Exit once X is sufficently small
                         ENDDO
-                        SMOIS(I,NS,J) = MAX(SMC,1E-4)
+                        SMOIS(I,NS,J) = MAX(SMC,SMCWLT(K))
                      ENDDO
                    ENDIF
                 ENDDO
@@ -2856,13 +2881,6 @@ EQWTD=WTD
                      ENDIF
                   ENDIF
              END DO
-             !IF(SMOIS(I,NSOIL,J).GT.0.3)THEN
-             !    print*,"INFO: Excessive Initial SMC Found"
-             !    print*,"I:                               ",I
-             !    print*,"J:                               ",J
-             !    print*,"SMC:                             ",SMOIS(I,:,J)
-             !    print*,"SMCMAX:                          ",SMCMAX
-             !ENDIF
             ELSE
               SMOISEQ (I,1:NSOIL,J) = SMCMAX
               SMCWTDXY(I,J) = SMCMAXDEEP

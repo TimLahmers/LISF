@@ -349,12 +349,16 @@ subroutine NoahMP401_main(n)
 
             ! TML print statement for model debugging.
             tmp_printdebug = 0
-            if (row .eq. 12) then
-                if (col .eq. 25) then
-                    tmp_printdebug = 1
-                    !print *, "PRINTED DEBUG VARIABLES ON"
-                endif
-            endif
+            !if (row .eq. 63) then
+            !    if (col .eq. 32) then
+            !        tmp_printdebug = 1
+            !    endif
+            !endif
+            !if (row .eq. 86) then
+            !    if (col .eq. 87) then
+            !        tmp_printdebug = 2
+            !    endif
+            !endif
 
             ! retrieve forcing data from NOAHMP401_struc(n)%noahmp401(t) and assign to local variables
             ! tair: air temperature
@@ -1158,7 +1162,7 @@ subroutine NoahMP401_main(n)
                     eqwtd(col,row)     = NOAHMP401_struc(n)%eqwtd(cidx, ridx)
                     rivercond(col,row) = NOAHMP401_struc(n)%rivercond(cidx, ridx)
                     rechclim(col,row)  = NOAHMP401_struc(n)%rechclim(cidx, ridx)
-                    pexp(col,row)      = 1.0
+                    pexp(col,row)      = NOAHMP401_struc(n)%pexp(cidx, ridx)
                 enddo ! col loop
             enddo ! row loop
             
@@ -1784,6 +1788,9 @@ subroutine NoahMP401_main(n)
             call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_SMCWTD, value = NOAHMP401_struc(n)%noahmp401(t)%smcwtd, &
                   vlevel=1, unit="m^3 m-3", direction="-", surface_type = LIS_rc%lsm_index)
 
+            ![ 101] Rech - Accumulated Recharge (for MMF Groundwater) - (unit=mm) 
+            call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_DEEPRECH, value = NOAHMP401_struc(n)%noahmp401(t)%deeprech, &
+                  vlevel=1, unit="mm", direction="-", surface_type = LIS_rc%lsm_index)
 
 ! Added water balance change terms - David Mocko
             endsm = 0.0
