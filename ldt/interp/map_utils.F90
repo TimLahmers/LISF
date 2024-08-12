@@ -150,7 +150,7 @@ implicit none
 
   ! mean earth radius in m.  the value below is consistent
   ! with nceps routines and grids.
-  real, public, parameter     :: earth_radius_m = 6371200.
+  real, public, parameter     :: earth_radius_m = 6370000.
 
   ! define public parameters
 !mp
@@ -319,13 +319,17 @@ CONTAINS
     ! Local variables
     REAL   :: center_i,center_j
     REAL   :: center_lat, center_lon
+    REAL   :: var_dummy
 
     ! Executable code
 
     ! First, check for validity of mandatory variables in proj
+    !PRINT *, lat1
     IF ( ABS(lat1) .GT. 90.001 ) THEN
+      PRINT *, lat1
       PRINT '(A)', 'Latitude of origin corner required as follows:'
       PRINT '(A)', '    -90N <= lat1 < = 90.N'
+      var_dummy = lat1/0.  !TML: Will cause seg. fault for easier stack trace
       STOP 'MAP_INIT'
     ENDIF
     IF (( ABS(lon1) .GT. 180.) .AND. ( proj_code .NE. PROJ_LATLON )) THEN

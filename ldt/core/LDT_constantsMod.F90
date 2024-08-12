@@ -36,7 +36,7 @@ module LDT_constantsMod
    real,parameter :: LDT_CONST_CDAY   = 86400.0      ! sec in calendar day ~ sec
    real,parameter :: LDT_CONST_SDAY   = 86164.0      ! sec in siderial day ~ sec
    real,parameter :: LDT_CONST_OMEGA  = 2.0*LDT_CONST_PI/LDT_CONST_SDAY ! earth rot ~ rad/sec
-   real,parameter :: LDT_CONST_REARTH = 6.37122e6    ! radius of earth ~ m
+   real,parameter :: LDT_CONST_REARTH = 6.37000e6    ! radius of earth ~ m
    real,parameter :: LDT_CONST_G      = 9.80616      ! acceleration of gravity ~ m/s^2
    real,parameter :: LDT_CONST_PSTD   = 101325.0     ! standard pressure ~ pascals
 
