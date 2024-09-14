@@ -468,8 +468,13 @@ subroutine NoahMP401_readrst()
 
             !TML Root Zone Scheme
             if(NOAHMP401_struc(n)%root_opt .eq. 2) then
-                call LIS_readvar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%inactive, &
-                                         varname="INACTIVE", wformat=wformat)
+              do l=1, NOAHMP401_struc(n)%nsoil ! TODO: check loop
+                call LIS_readvar_restart(ftn, n, LIS_rc%lsm_index, tmptilen, varname="INACTIVE", &
+                                         dim=l, vlevels = NOAHMP401_struc(n)%nsoil, wformat=wformat)
+                do t=1, LIS_rc%npatch(n, LIS_rc%lsm_index)
+                    NOAHMP401_struc(n)%noahmp401(t)%inactive(l) = tmptilen(t)
+                enddo
+              enddo
                 call LIS_readvar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%kroot, &
                                          varname="KROOT", wformat=wformat)
             endif

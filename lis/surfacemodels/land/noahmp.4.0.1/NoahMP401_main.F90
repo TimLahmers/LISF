@@ -186,14 +186,14 @@ subroutine NoahMP401_main(n)
     real                 :: tmp_grain              ! mass of grain XING [g/m2]
     real                 :: tmp_gdd                ! growing degree days XING (based on 10C) [-]
     integer              :: tmp_pgs                ! growing degree days XING [-]
-    real                 :: tmp_easy               ! Root scheme ease function [-] 
-    real                 :: tmp_rootactivity       ! Root activity function [-]
-    real                 :: tmp_inactive           ! Number of timesteps with inactive roots [-]
+    real, allocatable    :: tmp_easy(:)            ! Root scheme ease function [-] 
+    real, allocatable    :: tmp_rootactivity(:)    ! Root activity function [-]
+    real, allocatable    :: tmp_inactive(:)        ! Number of timesteps with inactive roots [-]
     integer              :: tmp_kroot              ! Layer depth of root zone [-]
     integer              :: tmp_kwtd               ! Layer depth of water table [-]
-    real                 :: tmp_psi                ! Soil matric potential [m]
+    real, allocatable    :: tmp_psi(:)             ! Soil matric potential [m]
     integer              :: tmp_gwrd               ! Root water uptake depth [m]
-    real                 :: tmp_btrani             ! Beta factor for soil moisture stress [-]
+    real, allocatable    :: tmp_btrani(:)          ! Beta factor for soil moisture stress [-]
     real                 :: tmp_fdepth_col         ! E-Folding Depth for Single Column
     real, allocatable    :: tmp_gecros_state(:)    ! optional gecros crop [-]
     real                 :: tmp_t2mv               ! 2m temperature of vegetation part [K]
@@ -333,6 +333,12 @@ subroutine NoahMP401_main(n)
     allocate( tmp_snowliq( NOAHMP401_struc(n)%nsnow ) )
     allocate( tmp_smoiseq( NOAHMP401_struc(n)%nsoil ) )
     allocate( tmp_gecros_state( 60 ) )
+
+    allocate( tmp_easy( NOAHMP401_struc(n)%nsoil ) )
+    allocate( tmp_rootactivity( NOAHMP401_struc(n)%nsoil ) )
+    allocate( tmp_inactive( NOAHMP401_struc(n)%nsoil ) )
+    allocate( tmp_psi( NOAHMP401_struc(n)%nsoil ) )
+    allocate( tmp_btrani( NOAHMP401_struc(n)%nsoil ) )
 
     ! check NoahMP401 alarm. If alarm is ring, run model.
 
@@ -675,14 +681,16 @@ subroutine NoahMP401_main(n)
                 tmp_fdepth_col = 100.0 !Set e-folding to value for water if mmf not used...
             endif
             if(NOAHMP401_struc(n)%root_opt .eq. 2) then
-                tmp_easy         = NOAHMP401_struc(n)%noahmp401(t)%easy
-                tmp_rootactivity = NOAHMP401_struc(n)%noahmp401(t)%rootactivity
-                tmp_inactive     = NOAHMP401_struc(n)%noahmp401(t)%inactive
-                tmp_kroot        = NOAHMP401_struc(n)%noahmp401(t)%kroot
-                tmp_kwtd         = NOAHMP401_struc(n)%noahmp401(t)%kwtd
-                tmp_psi          = NOAHMP401_struc(n)%noahmp401(t)%psi
-                tmp_gwrd         = NOAHMP401_struc(n)%noahmp401(t)%gwrd
-                tmp_btrani       = NOAHMP401_struc(n)%noahmp401(t)%btrani
+                !print *, "tmp_easy:",tmp_easy(:)
+                !print *, "easy:    ",NOAHMP401_struc(n)%noahmp401(t)%easy(:)
+                tmp_easy(:)         = NOAHMP401_struc(n)%noahmp401(t)%easy(:)
+                tmp_rootactivity(:) = NOAHMP401_struc(n)%noahmp401(t)%rootactivity(:)
+                tmp_inactive(:)     = NOAHMP401_struc(n)%noahmp401(t)%inactive(:)
+                tmp_kroot           = NOAHMP401_struc(n)%noahmp401(t)%kroot
+                tmp_kwtd            = NOAHMP401_struc(n)%noahmp401(t)%kwtd
+                tmp_psi(:)          = NOAHMP401_struc(n)%noahmp401(t)%psi(:)
+                tmp_gwrd            = NOAHMP401_struc(n)%noahmp401(t)%gwrd
+                tmp_btrani(:)       = NOAHMP401_struc(n)%noahmp401(t)%btrani(:)
                 if(NOAHMP401_struc(n)%run_opt .ne. 5) then
                     write(LIS_logunit,*)'[ERR] UIUC Root Zone Requires Runoff Opt 5.'
                     call LIS_endrun()
@@ -1011,14 +1019,15 @@ subroutine NoahMP401_main(n)
             NOAHMP401_struc(n)%noahmp401(t)%infxs1rt  = tmp_infxs1rt(1,1)
             NOAHMP401_struc(n)%noahmp401(t)%soldrain1rt  = tmp_soldrain1rt(1,1)
             if (NOAHMP401_struc(n)%root_opt .eq. 2) then
-              NOAHMP401_struc(n)%noahmp401(t)%easy         = tmp_easy
-              NOAHMP401_struc(n)%noahmp401(t)%rootactivity = tmp_rootactivity
-              NOAHMP401_struc(n)%noahmp401(t)%inactive     = tmp_inactive
-              NOAHMP401_struc(n)%noahmp401(t)%kroot        = tmp_kroot
-              NOAHMP401_struc(n)%noahmp401(t)%kwtd         = tmp_kwtd
-              NOAHMP401_struc(n)%noahmp401(t)%psi          = tmp_psi
-              NOAHMP401_struc(n)%noahmp401(t)%gwrd         = tmp_gwrd 
-              NOAHMP401_struc(n)%noahmp401(t)%btrani       = tmp_btrani 
+              NOAHMP401_struc(n)%noahmp401(t)%easy(:)         = tmp_easy(:)
+              NOAHMP401_struc(n)%noahmp401(t)%rootactivity(:) = tmp_rootactivity(:)
+              !print *, 'rootactivity:', NOAHMP401_struc(n)%noahmp401(t)%rootactivity(:)
+              NOAHMP401_struc(n)%noahmp401(t)%inactive(:)     = tmp_inactive(:)
+              NOAHMP401_struc(n)%noahmp401(t)%kroot           = tmp_kroot
+              NOAHMP401_struc(n)%noahmp401(t)%kwtd            = tmp_kwtd
+              NOAHMP401_struc(n)%noahmp401(t)%psi(:)          = tmp_psi(:)
+              NOAHMP401_struc(n)%noahmp401(t)%gwrd            = tmp_gwrd 
+              NOAHMP401_struc(n)%noahmp401(t)%btrani(:)       = tmp_btrani(:) 
               ! tmp_fdepth_col not needed; constant
             endif
             
@@ -1788,9 +1797,55 @@ subroutine NoahMP401_main(n)
             call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_SMCWTD, value = NOAHMP401_struc(n)%noahmp401(t)%smcwtd, &
                   vlevel=1, unit="m^3 m-3", direction="-", surface_type = LIS_rc%lsm_index)
 
-            ![ 101] Rech - Accumulated Recharge (for MMF Groundwater) - (unit=mm) 
+            ![ 103] Rech - Accumulated Recharge (for MMF Groundwater) - (unit=mm) 
             call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_DEEPRECH, value = NOAHMP401_struc(n)%noahmp401(t)%deeprech, &
                   vlevel=1, unit="mm", direction="-", surface_type = LIS_rc%lsm_index)
+
+            !Rootzone Values
+            if (NOAHMP401_struc(n)%root_opt .eq. 2) then
+              ![ 104] Easy - Root scheme ease function (for Rootzone) - (unit=-) 
+              do i=1, NOAHMP401_struc(n)%nsoil
+              call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_EASY, value = NOAHMP401_struc(n)%noahmp401(t)%easy(i), &
+                    vlevel=i, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+              end do
+
+              ![ 104] RootActivity - Root activity (for Rootzone) - (unit=-) 
+              do i=1, NOAHMP401_struc(n)%nsoil
+              call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_ROOTACTIVITY, value = NOAHMP401_struc(n)%noahmp401(t)%rootactivity(i), &
+                    vlevel=i, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+              end do
+
+              ![ 106] Kroot - Layer depth of root zone (for Rootzone) - (unit=-) 
+              !call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_KROOT, value = NOAHMP401_struc(n)%noahmp401(t)%kroot, &
+              !      vlevel=1, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+
+              ![ 107] Kwtd - Layer depth of water table (for MMF Rootzone) - (unit=-) 
+              !call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_KWTD, value = NOAHMP401_struc(n)%noahmp401(t)%kwtd, &
+              !      vlevel=1, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+
+              ![ 108] Inactive - Number of timesteps with inactive roots (for MMF Rootzone) - (unit=-) 
+              do i=1, NOAHMP401_struc(n)%nsoil
+              call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_INACTIVE, value = NOAHMP401_struc(n)%noahmp401(t)%inactive(i), &
+                    vlevel=i, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+              end do
+
+              ![ 109] Gwrd - Root water uptake depth (for MMF Rootzone) - (unit=m) 
+              !call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_GWRD, value = NOAHMP401_struc(n)%noahmp401(t)%gwrd, &
+              !      vlevel=1, unit="m", direction="-", surface_type = LIS_rc%lsm_index)
+
+              ![ 110] Btrani - Beta factor for soil moisture stress (for MMF Rootzone) - (unit=-) 
+              do i=1, NOAHMP401_struc(n)%nsoil
+              call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_BTRANI, value = NOAHMP401_struc(n)%noahmp401(t)%btrani(i), &
+                    vlevel=i, unit="-", direction="-", surface_type = LIS_rc%lsm_index)
+              end do
+
+              ![ 111] Psi - Soil matric potential (for Rootzone) - (unit=m) 
+              do i=1, NOAHMP401_struc(n)%nsoil
+              call LIS_diagnoseSurfaceOutputVar(n, t, LIS_MOC_PSI, value = NOAHMP401_struc(n)%noahmp401(t)%psi(i), &
+                    vlevel=i, unit="m", direction="-", surface_type = LIS_rc%lsm_index)
+              end do
+
+            endif
 
 ! Added water balance change terms - David Mocko
             endsm = 0.0

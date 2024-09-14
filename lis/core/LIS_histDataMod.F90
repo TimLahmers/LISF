@@ -507,6 +507,24 @@ module LIS_histDataMod
   integer :: LIS_MOC_RECH = -9999
   integer :: LIS_MOC_WTD = -9999
 
+  ! Rootzone
+  public :: LIS_MOC_EASY
+  public :: LIS_MOC_ROOTACTIVITY
+  public :: LIS_MOC_KROOT
+  public :: LIS_MOC_KWTD
+  public :: LIS_MOC_INACTIVE
+  public :: LIS_MOC_GWRD
+  public :: LIS_MOC_BTRANI
+  public :: LIS_MOC_PSI
+  integer :: LIS_MOC_EASY = -9999
+  integer :: LIS_MOC_ROOTACTIVITY = -9999
+  integer :: LIS_MOC_KROOT = -9999
+  integer :: LIS_MOC_KWTD = -9999
+  integer :: LIS_MOC_INACTIVE = -9999
+  integer :: LIS_MOC_GWRD = -9999
+  integer :: LIS_MOC_BTRANI = -9999
+  integer :: LIS_MOC_PSI = -9999
+
 ! SnowModel outputs:
   public ::   LIS_MOC_SWE_SM
   public ::   LIS_MOC_SNOWDEPTH_SM
@@ -1323,6 +1341,102 @@ contains
        call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_WTD,&
             LIS_histData(n)%head_lsm_list,&
             n,1,ntiles,(/"m"/),1,(/"-"/),1,112,0,&
+            model_patch=.true.)
+    endif
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Easy:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Easy",&
+         "root_scheme_ease_function", &
+         "root scheme ease function",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_EASY,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,grib_depthlvl,0,&
+            model_patch=.true.) 
+    endif 
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"RootActivity:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "RootActivity",&
+         "root_activity", &
+         "root activity",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_ROOTACTIVITY,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,grib_depthlvl,0,&
+            model_patch=.true.) 
+    endif 
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Kroot:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Kroot",&
+         "layer_depth_of_root_zone",&
+         "layer depth of root zone",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_KROOT,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,112,0,&
+            model_patch=.true.)
+    endif
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Kwtd:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Kwtd",&
+         "layer_depth_of_water_table", &
+         "layer depth of water table",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_KWTD,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,112,0,&
+            model_patch=.true.) 
+    endif 
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Inactive:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Inactive",&
+         "number_of_timesteps_with_inactive_roots", &
+         "number of timesteps with inactive roots",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_INACTIVE,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,grib_depthlvl,0,&
+            model_patch=.true.)
+    endif
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Gwrd:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Gwrd",&
+         "root_water_uptake_depth", &
+         "root water uptake depth",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_GWRD,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"m"/),1,(/"-"/),1,112,0,&
+            model_patch=.true.)
+    endif
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Btrani:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Btrani",&
+         "beta_factor_for_soil_moisture_stress", &
+         "beta factor for soil moisture stress",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_BTRANI,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"-"/),1,(/"-"/),1,grib_depthlvl,0,&
+            model_patch=.true.)
+    endif
+
+    call ESMF_ConfigFindLabel(modelSpecConfig,"Psi:",rc=rc)
+    call get_moc_attributes(modelSpecConfig, LIS_histData(n)%head_lsm_list, &
+         "Psi",&
+         "soil_matric_potential", &
+         "soil matric potential",rc)
+    if ( rc == 1 ) then
+       call register_dataEntry(LIS_MOC_LSM_COUNT,LIS_MOC_DEEPRECH,&
+            LIS_histData(n)%head_lsm_list,&
+            n,1,ntiles,(/"m"/),1,(/"-"/),1,grib_depthlvl,0,&
             model_patch=.true.)
     endif
 

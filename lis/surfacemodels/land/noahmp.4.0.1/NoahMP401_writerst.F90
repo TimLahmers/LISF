@@ -862,10 +862,15 @@ subroutine NoahMP401_dump_restart(n, ftn, wformat)
     if(NOAHMP401_struc(n)%root_opt .eq. 2) then
         call LIS_writeHeader_restart(ftn, n, dimID, inactive_ID, "INACTIVE", &
                                      "Number of timesteps with inactive roots", &
-                                     "-", vlevels=1, valid_min=-99999.0, valid_max=99999.0)
-        call LIS_writevar_restart(ftn, n, LIS_rc%lsm_index, NOAHMP401_struc(n)%noahmp401%inactive, &
-                                     varid=inactive_ID, dim=1, wformat=wformat)
-
+                                     "-", vlevels=4, valid_min=-99999.0, valid_max=99999.0)
+      do l=1, NOAHMP401_struc(n)%nsoil   ! TODO: check loop
+        tmptilen = 0
+        do t=1, LIS_rc%npatch(n, LIS_rc%lsm_index)
+            tmptilen(t) = NOAHMP401_struc(n)%noahmp401(t)%inactive(l)
+        enddo
+        call LIS_writevar_restart(ftn, n, LIS_rc%lsm_index, tmptilen, &
+                                     varid=inactive_ID, dim=l, wformat=wformat)
+      enddo
         call LIS_writeHeader_restart(ftn, n, dimID, kroot_ID, "KROOT", &
                                      "Layer depth of root zone", &
                                      "-", vlevels=1, valid_min=-99999.0, valid_max=99999.0)

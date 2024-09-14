@@ -467,6 +467,16 @@ contains
                                                     20)) ! 20 is the number of surfacetype categories, hardcoded temporarily 
                 allocate(NOAHMP401_struc(n)%vege2d(NOAHMP401_struc(n)%col_min:NOAHMP401_struc(n)%col_max, &
                                                     NOAHMP401_struc(n)%row_min:NOAHMP401_struc(n)%row_max))
+
+                if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+                    do t=1, LIS_rc%npatch(n, LIS_rc%lsm_index)
+                        allocate(NOAHMP401_struc(n)%noahmp401(t)%easy(NOAHMP401_struc(n)%nsoil))
+                        allocate(NOAHMP401_struc(n)%noahmp401(t)%rootactivity(NOAHMP401_struc(n)%nsoil))
+                        allocate(NOAHMP401_struc(n)%noahmp401(t)%inactive(NOAHMP401_struc(n)%nsoil))
+                        allocate(NOAHMP401_struc(n)%noahmp401(t)%btrani(NOAHMP401_struc(n)%nsoil))
+                        allocate(NOAHMP401_struc(n)%noahmp401(t)%psi(NOAHMP401_struc(n)%nsoil))
+                    enddo
+                endif
             endif
         enddo
     end subroutine NoahMP401_ini

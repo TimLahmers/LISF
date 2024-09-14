@@ -100,14 +100,14 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   integer,    intent(inout) :: pgs
 
   ! UIUC Root Zone
-  real,    intent(inout) :: easy              ! Root scheme ease function [-]  
-  real,    intent(inout) :: rootactivity      ! Root activity function [-]
-  real,    intent(inout) :: inactive           ! Number of timesteps with inactive roots [-]
+  real,    intent(inout) :: easy(nsoil)              ! Root scheme ease function [-]  
+  real,    intent(inout) :: rootactivity(nsoil)      ! Root activity function [-]
+  real,    intent(inout) :: inactive(nsoil)           ! Number of timesteps with inactive roots [-]
   integer,    intent(inout) :: kroot          ! Layer depth of root zone [-]
   integer,    intent(inout) :: kwtd           ! Layer depth of water table [-]
-  real,    intent(inout) :: psi               ! Soil matric potential [m]
+  real,    intent(inout) :: psi(nsoil)               ! Soil matric potential [m]
   integer,    intent(inout) :: gwrd           ! Root water uptake depth [m] 
-  real,    intent(inout) :: btrani            ! Beta factor for soil moisture stress [-] 
+  real,    intent(inout) :: btrani(nsoil)            ! Beta factor for soil moisture stress [-] 
   real,    intent(inout) :: fdepth_col        ! E-Folding Depth for Single Column
 
   ! gecros model
@@ -526,8 +526,15 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
    xice_thres = 0.5
 
    ! Root Zone: Set restart and update to false
-   root_update = .false.
-   restart_flag = .false.
+   if (LIS_rc%startcode.eq."coldstart") then
+       restart_flag = .false.
+       root_update = .false.
+   elseif (LIS_rc%startcode.eq."restart") then
+       restart_flag = .true.
+       root_update = .true.
+   endif
+   !print *, "LIS RC Rst Flag: ",LIS_rc%startcode
+   !print *, "Root Update Flag:", root_update
 
 #ifndef WRF_HYDRO
    sfcheadrt = 0.0
@@ -713,13 +720,13 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   graininout(1,1)     = grain
   gddinout(1,1)       = gdd
   pgsinout(1,1)       = pgs
-  easyinout(1,:,1)         = easy
-  rootactivityinout(1,:,1) = rootactivity
-  inactiveinout(1,:,1)     = inactive
+  easyinout(1,:,1)         = easy(:)
+  rootactivityinout(1,:,1) = rootactivity(:)
+  inactiveinout(1,:,1)     = inactive(:)
   krootinout(1,1)     = kroot
-  psiinout(1,:,1)          = psi
+  psiinout(1,:,1)          = psi(:)
   gwrdinout(1,1)      = gwrd
-  btraniinout(1,:,1)       = btrani
+  btraniinout(1,:,1)       = btrani(:)
   fdepthinout(1,1) = fdepth_col
   gecros_stateinout(1,:,1) = gecros_state(:)
   t2mvout(1,1) = t2mv
@@ -952,6 +959,15 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
   chb2 = chb2out(1,1)
   relsmc(:) = relsmcout(1,:,1)
   rs = rsout(1,1)
+
+  easy(:) = easyinout(1,:,1)
+  rootactivity(:) = rootactivityinout(1,:,1)
+  inactive(:) = inactiveinout(1,:,1)
+  kroot = krootinout(1,1)
+  psi(:) = psiinout(1,:,1)
+  gwrd = gwrdinout(1,1)
+  btrani(:) = btraniinout(1,:,1)
+  fdepth_col = fdepthinout(1,1)
 
   rainf = prcp * (1.0 - fpice)/dt  ! added by Shugong for LIS output 
   snowf = prcp * fpice/dt          ! added by Shugong for LIS output 

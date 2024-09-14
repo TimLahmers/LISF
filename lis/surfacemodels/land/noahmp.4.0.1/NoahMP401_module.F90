@@ -452,15 +452,15 @@ module NoahMP401_module
         real               :: qrf        !MMF output SW for MMF
         real               :: qspring    !MMF output, SW 
         real               :: rechclim   !SW 
-        real               :: easy         !TML UIUC Root
-        real               :: rootactivity !TML
-        real               :: inactive     !TML
-        integer            :: kroot        !TML
-        integer            :: kwtd         !TML
-        real               :: psi          !TML
-        integer            :: gwrd         !TML
-        real               :: btrani       !TML
-        real               :: fdepth_col   !TML
+        real, pointer               :: easy(:)         !TML UIUC Root
+        real, pointer               :: rootactivity(:) !TML
+        real, pointer               :: inactive(:)     !TML
+        integer            :: kroot           !TML
+        integer            :: kwtd            !TML
+        real, pointer               :: psi(:)          !TML
+        integer            :: gwrd            !TML
+        real, pointer               :: btrani(:)       !TML
+        real               :: fdepth_col      !TML
         real               :: grain
         real               :: gdd
         integer            :: pgs
