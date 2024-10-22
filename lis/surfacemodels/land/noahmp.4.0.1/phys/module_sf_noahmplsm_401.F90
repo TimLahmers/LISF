@@ -1988,27 +1988,34 @@ ENDIF   ! CROPTYPE == 0
      ! Root water uptake scheme (Fan et al. 2017) ------------------------------------------------
        IF (OPT_ROOT == 2) THEN
        ! Determine layer where water table is located, if within resolved soil layers
-         DO IZ = 1, NSOIL
-           if(ZWT .gt. ZSOIL(IZ))exit
-         END DO
-         KWTD = MIN(IZ,NSOIL)
-         IWTD = IZ-1          ! Layer above water table
+       DZSROOT = DZSNSO(1:NSOIL) ! Soil thickness variable just for use in root scheme
+       
+       IF(ZWT .lt. ZSOIL(NSOIL)) THEN ! Set KWTD to NSOIL if water table below resolved layers
+           KWTD = NSOIL
+       ELSE
+           DO IZ = 1, NSOIL ! Find exact layer with water table if within resolved layers
+               if(ZWT .gt. ZSOIL(IZ))exit
+           END DO
+           KWTD = MIN(IZ,NSOIL) ! Layer with water table
+           IWTD = KWTD-1 ! Layer above water table
+           
+           ! Adjust layer thickness accordingly
+           IF (IWTD .ge. 1) DZSROOT(KWTD) = -1*(ZWT-ZSOIL(IWTD))
+       END IF
+       
+         ! Determine layers with active roots - depth of root zone
 
-       ! Adjust layer thickness accordingly
-         DZSROOT       = DZSNSO(1:NSOIL)
-         DZSROOT(KWTD) = -1*(ZWT-ZSOIL(IWTD))
-
-       ! Determine layers with active roots - depth of root zone
          INACTIVEDAYS(1:NSOIL) = INACTIVE(1:NSOIL)*DT ! Convert # of inactive timesteps to inactive days (in seconds)
+
          DO IZ = 1, NSOIL
           if(INACTIVEDAYS(IZ) .gt. MAXINACTIVEDAYS)exit
          END DO
-         KROOT = MIN(IZ-1,NSOIL)        ! Bottom layer of root zone
+         KROOT = MIN(MAX(IZ-1,1),NSOIL) ! Bottom layer of root zone
 
          HCAN  = parameters%HVT*(2./3.) ! Canopy height
 
          ! Start calculation of ease function and root activity
-         DO IZ = 1, MIN(KROOT, KWTD)
+         DO IZ = 1, MIN(MIN(KROOT+1,NSOIL), KWTD)
            IF (IZ==1) THEN            ! Get layer midpoints
              MID = -0.05
            ELSE
@@ -2038,7 +2045,8 @@ ENDIF   ! CROPTYPE == 0
          !eliminate small root activity
          WHERE(EASY .lt. 0.001*MAXEASY) EASY = 0.
 
-         DO IZ = 1, KROOT
+         ! Allow root water uptake to extend deeper only if needed
+         DO IZ = 1, MIN(KROOT+1,NSOIL)
            if(INACTIVEDAYS(IZ) .gt. MAXINACTIVEDAYS .and. EASY(IZ) .lt. MAXEASY) EASY(IZ) = 0.
          ENDDO
 
