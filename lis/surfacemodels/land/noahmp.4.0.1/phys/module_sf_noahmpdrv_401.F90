@@ -795,18 +795,19 @@ CONTAINS
        end if
 
        !print* , "iopt_root:",iopt_root 
-       if((iopt_root == 2) .AND. (restart_flag==.FALSE.)) then 
+       if((iopt_root == 2) .AND. (.not.restart_flag)) then 
           NDAYS = DT*ITIMESTEP ! calculate number of days model has been running
           ! update variables based on root scheme after one year
-          if (NDAYS .GT. 31536000.0) then
-             ROOT_UPDATE=.TRUE. 
+          !if (NDAYS .GT. 31536000.0) then
+          !   ROOT_UPDATE=.TRUE. 
              !parameters%NROOT = KROOT  ! update NROOT based on KROOT
-          else
-             ROOT_UPDATE=.FALSE.
-          endif     
+          !else
+          !   ROOT_UPDATE=.FALSE.
+          !endif
+          ROOT_UPDATE=.TRUE.      
        endif        
        
-       if((ROOT_UPDATE == .TRUE.) .AND. (iopt_root == 2)) then
+       if( (ROOT_UPDATE) .AND. (iopt_root == 2)) then
            parameters%NROOT = KROOT ! update NROOT based on KROOT
        endif
 
@@ -1142,7 +1143,7 @@ CONTAINS
             QC      , SWDN    , LWDN    ,                               & ! IN : Forcing
 	    PRCPCONV, PRCPNONC, PRCPSHCV, PRCPSNOW, PRCPGRPL, PRCPHAIL, & ! IN : Forcing
             TBOT    , CO2PP   , O2PP    , FOLN    , FICEOLD , Z_ML    , & ! IN : Forcing
-            PRINTDEBUG,       &
+            !PRINTDEBUG,       &
             ALBOLD  , SNEQVO  ,                                         & ! IN/OUT : 
             STC     , SMH2O   , SMC     , TAH     , EAH     , FWET    , & ! IN/OUT : 
             CANLIQ  , CANICE  , TV      , TG      , QSFC1D  , QSNOW   , & ! IN/OUT : 
@@ -2842,7 +2843,7 @@ EQWTD=WTD
                       FILLLAYERS = .TRUE.
                    ENDIF
                    ! Fill in other layers if FILLAYERS = TRUE
-                   IF ((K .GT. NSOIL_REDUCED+1) .AND. (FILLLAYERS .EQ. .TRUE.)) THEN
+                   IF ((K .GT. NSOIL_REDUCED+1) .AND. (FILLLAYERS)) THEN
                      DO NS = K-1,NSOIL_REDUCED+1,-1
                         DDZ = ( ZSOIL(NS-1) - ZSOIL(NS+1) ) * 0.5
                         EXPON = BEXP + 1.       ! Define terms

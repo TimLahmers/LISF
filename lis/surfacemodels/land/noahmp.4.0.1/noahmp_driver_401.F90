@@ -528,7 +528,7 @@ subroutine noahmp_driver_401(n, ttile, itimestep, &
    ! Root Zone: Set restart and update to false
    if (LIS_rc%startcode.eq."coldstart") then
        restart_flag = .false.
-       root_update = .false.
+       root_update = .true.  !Update roots in all conditions from initialization...
    elseif (LIS_rc%startcode.eq."restart") then
        restart_flag = .true.
        root_update = .true.

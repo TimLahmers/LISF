@@ -432,6 +432,16 @@ subroutine mmf_start(n)
                 NOAHMP401_struc(n)%noahmp401(t)%qslat     = qslatxy(col,row) 
                 NOAHMP401_struc(n)%noahmp401(t)%qrfs      = qrfsxy(col,row) 
                 NOAHMP401_struc(n)%noahmp401(t)%qsprings  = qspringsxy(col,row)
+                ! Set initial values for Rootzone Scheme to be stable; do not assume root activity in deep soil
+                if(NOAHMP401_struc(n)%root_opt .eq. 2) then
+                    NOAHMP401_struc(n)%noahmp401(t)%easy(:)         = 0.0
+                    NOAHMP401_struc(n)%noahmp401(t)%rootactivity(:) = 0.0
+                    NOAHMP401_struc(n)%noahmp401(t)%btrani(:)       = 0.0
+                    NOAHMP401_struc(n)%noahmp401(t)%psi(:)          = 0.0
+                    NOAHMP401_struc(n)%noahmp401(t)%inactive(1)     = 0.0
+                    NOAHMP401_struc(n)%noahmp401(t)%inactive(2:NOAHMP401_struc(n)%nsoil) = &
+                        366.0*(86400/LIS_rc%ts) ! (1 yr + 1 day) * num. timesteps in a day ...
+                endif
             endif 
             NOAHMP401_struc(n)%rivercond(col, row)    = rivercond(col,row) !!! make a copy to the 2D paramter data structure 
             NOAHMP401_struc(n)%riverbed(col, row)     = riverbed(col,row)  !!! make a copy to the 2D paramter data structure 
