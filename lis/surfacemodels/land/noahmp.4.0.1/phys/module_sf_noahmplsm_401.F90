@@ -784,7 +784,7 @@ contains
 		 SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2,&
                  FGEV_PET, FCEV_PET, FCTR_PET,                            & ! PET code from Sujay 
                  JULIAN, SWDOWN, PRCP, FB, GECROS1D, &
-                 OPT_ROOT, EASY, ROOTACTIVITY  , ZWT   , INACTIVE, KROOT,& ! Root scheme 
+                 OPT_ROOT, EASY, ROOTACTIVITY  , ZWT   , INACTIVE, KROOT, ROOTUPDATE,& ! Root scheme 
                  KWTD   , PSI   )
         
 !jref:end
@@ -856,7 +856,7 @@ contains
                  ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , & !in
                  NSNOW  ,IST    ,ERRWAT ,ILOC   , JLOC  ,FVEG   , &
                  SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                 PAHV   ,PAHG   ,PAHB   )   !in ( Except ERRWAT, which is out )
+                 PAHV   ,PAHG   ,PAHB   ,BTRANI ,ROOTACTIVITY ) !in ( Except ERRWAT, which is out )
 
 ! urban - jref
     QFX = ETRAN + ECAN + EDIR
@@ -1347,7 +1347,7 @@ ENDIF   ! CROPTYPE == 0
                     ETRAN  ,EDIR   ,RUNSRF ,RUNSUB ,DT     ,NSOIL  , &
                     NSNOW  ,IST    ,ERRWAT, ILOC   ,JLOC   ,FVEG   , &
                     SAV    ,SAG    ,FSRV   ,FSRG   ,ZWT    ,PAH    , &
-                    PAHV   ,PAHG   ,PAHB   )
+                    PAHV   ,PAHG   ,PAHB   ,BTRANI ,ROOTACTIVITY )
 ! --------------------------------------------------------------------------------------------------
 ! check surface energy balance and water balance
 ! --------------------------------------------------------------------------------------------------
@@ -1390,6 +1390,8 @@ ENDIF   ! CROPTYPE == 0
   REAL                           , INTENT(IN) :: WA     !water storage in aquifer [mm]
   REAL                           , INTENT(IN) :: DT     !time step [sec]
   REAL                           , INTENT(IN) :: BEG_WB !water storage at begin of a timesetp [mm]
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: BTRANI !Soil water transpiration factor (0 - 1)
+  REAL, DIMENSION(       1:NSOIL), INTENT(IN) :: ROOTACTIVITY ! Root activity function 
   REAL                           , INTENT(OUT) :: ERRWAT !error in water balance [mm/timestep]
   REAL, INTENT(IN)   :: PAH     !precipitation advected heat - total (W/m2)
   REAL, INTENT(IN)   :: PAHV    !precipitation advected heat - total (W/m2)
@@ -1504,7 +1506,25 @@ ENDIF   ! CROPTYPE == 0
            print *,'EDIR = ',EDIR*DT
            print *,'RUNSRF = ',RUNSRF*DT
            print *,'RUNSUB = ',RUNSUB*DT
-           call wrf_error_fatal("Water budget problem in NOAHMP LSM")
+           print *,'Deep Rootzone Scheme Diagnostics: '
+           print *,'ZWT =  ',ZWT
+           print *,'FVEG = ',FVEG   
+           print *,'root activity sum:        ',SUM(ROOTACTIVITY)       
+           print *,'transpiration factor sum: ',SUM(BTRANI) 
+           DO IZ = 1,NSOIL
+               print *,'IZ:                   ',IZ
+               print *,'layer thickness:      ',DZSNSO(IZ)
+               print *,'SMC:                  ',SMC(IZ)
+               print *,'SMCMAX:               ',parameters%SMCMAX(IZ)
+               print *,'SMCREF:               ',parameters%SMCREF(IZ)
+               print *,'SMCWLT:               ',parameters%SMCWLT(IZ)
+               !print *,'SMCMIN:               ',parameters%SMCMIN(IZ)
+               print *,'SMC available:        ',SMC(IZ)-parameters%SMCWLT(IZ)
+               print *,'root activity:        ',ROOTACTIVITY(IZ)
+               print *,'transpiration factor: ',BTRANI(IZ)
+               print *,'layer etran w/roots:  ',ETRAN * ROOTACTIVITY(IZ) * 0.001
+           END DO
+           !call wrf_error_fatal("Water budget problem in NOAHMP LSM")
         END IF
 #endif
    ELSE                 !KWM
@@ -1541,7 +1561,7 @@ ENDIF   ! CROPTYPE == 0
 		     SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2, &
                      FGEV_PET, FCEV_PET, FCTR_PET, & ! PET code from Sujay 
                      JULIAN, SWDOWN, PRCP, FB, GECROS1D,  &
-                     OPT_ROOT,EASY, ROOTACTIVITY, ZWT, INACTIVE, KROOT, KWTD, PSIZ) ! Root scheme        
+                     OPT_ROOT,EASY, ROOTACTIVITY, ZWT, INACTIVE, KROOT,ROOT_UPDATE, KWTD, PSIZ) ! Root scheme        
 !jref:end                            
 
 ! --------------------------------------------------------------------------------------------------
@@ -1763,6 +1783,7 @@ ENDIF   ! CROPTYPE == 0
   REAL,   DIMENSION(1:NSOIL)                        :: INACTIVEDAYS    ! number of days without active roots (s)
   REAL                                              :: MAXINACTIVEDAYS ! max number of days without active roots (s)
   INTEGER,INTENT(INOUT)                             :: KROOT           ! layer depth of root zone (-)
+  LOGICAL                        , INTENT(IN)       :: ROOT_UPDATE     ! if TRUE, update model variables based on root scheme
   INTEGER,DIMENSION(1:NSOIL)                        :: ROOTMASK        ! mask for layers without active roots (-)
   REAL                                              :: TOTEASY, MAXEASY! variables needed for root scheme calculation
   REAL,   DIMENSION(1:NSOIL),INTENT(INOUT)          :: ROOTACTIVITY    ! root activity function (0 - 1)
@@ -6624,6 +6645,8 @@ ENDIF   ! CROPTYPE == 0
   INTEGER                                        :: KWTD   !layer index where the water table layer is
   REAL,  DIMENSION(       0:NSOIL)               :: ZSOIL0
 
+  REAL                                           :: SMC_T
+
   REAL, PARAMETER ::  WSLMAX = 5000.      !maximum lake water storage (mm)
 
   !ag (05Jan2021)
@@ -6705,9 +6728,16 @@ ENDIF   ! CROPTYPE == 0
     QSEVA  = QSEVA * 0.001 
 
   IF (OPT_ROOT == 2) THEN 
-          IF (ROOT_UPDATE==.TRUE.) THEN                                 ! If model running for at least 1yr,
+          IF (ROOT_UPDATE) THEN                                 ! If model running for at least 1yr,
               DO IZ = 1, parameters%NROOT                               ! Use root activity function instead of beta
                     ETRANI(IZ) = ETRAN * ROOTACTIVITY(IZ) * 0.001        
+                    SMC_T = (SMC(IZ) - parameters%SMCWLT(IZ)) * DZSNSO(IZ) 
+                    IF ((ETRANI(IZ)*DT > SMC_T).and.(ETRANI(IZ)*DT > 0.) ) THEN
+                        print *,'WARNING: Layer ETRAN > Avail. soil water'
+                        print *,'IZ:                     ',IZ
+                        print *,'Layer Transpiration: (m)',ETRANI(IZ)*DT
+                        print *,'Soil Water:          (m)',SMC_T
+                    ENDIF
               ENDDO
 
               ETRANSUM = 0.0                                            ! Get root water uptake depth GWRD
