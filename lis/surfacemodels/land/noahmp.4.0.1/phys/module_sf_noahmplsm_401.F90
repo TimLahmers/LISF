@@ -784,7 +784,7 @@ contains
 		 SHG,SHC,SHB,EVG,EVB,GHV,GHB,IRG,IRC,IRB,TR,EVC,CHLEAF,CHUC,CHV2,CHB2,&
                  FGEV_PET, FCEV_PET, FCTR_PET,                            & ! PET code from Sujay 
                  JULIAN, SWDOWN, PRCP, FB, GECROS1D, &
-                 OPT_ROOT, EASY, ROOTACTIVITY  , ZWT   , INACTIVE, KROOT, ROOTUPDATE,& ! Root scheme 
+                 OPT_ROOT, EASY, ROOTACTIVITY  , ZWT   , INACTIVE, KROOT, ROOT_UPDATE,& ! Root scheme 
                  KWTD   , PSI   )
         
 !jref:end
