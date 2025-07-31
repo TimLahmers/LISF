@@ -321,9 +321,498 @@ subroutine NoahMP401_read_OPT_parameters()
         enddo
      endif
 
-     deallocate(placeholder)
+!    Soil Parameters from AI Calibration
+
+!    QUARTZ (4-layer)
+     call NOAHMP401_read_OPT_param(n, "QUARTZ", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%quartz(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "QUARTZ", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%quartz(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "QUARTZ", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%quartz(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "QUARTZ", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%quartz(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    SMCWLT (4-layer)
+     call NOAHMP401_read_OPT_param(n, "SMCWLT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcwlt(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCWLT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcwlt(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCWLT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcwlt(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCWLT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcwlt(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    SMCREF (4-layer)
+     call NOAHMP401_read_OPT_param(n, "SMCREF", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcref(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCREF", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcref(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCREF", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcref(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCREF", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcref(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
     
+!    SMCMAX (4-layer)
+     call NOAHMP401_read_OPT_param(n, "SMCMAX", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcmax(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCMAX", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcmax(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCMAX", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcmax(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "SMCMAX", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%smcmax(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    PSISAT (4-layer)
+     call NOAHMP401_read_OPT_param(n, "PSISAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%psisat(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "PSISAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%psisat(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "PSISAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%psisat(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "PSISAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%psisat(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    DWSAT (4-layer)
+     call NOAHMP401_read_OPT_param(n, "DWSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dwsat(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DWSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dwsat(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DWSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dwsat(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DWSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dwsat(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    DKSAT (4-layer)
+     call NOAHMP401_read_OPT_param(n, "DKSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dksat(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DKSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dksat(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DKSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dksat(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "DKSAT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%dksat(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    BEXP (4-layer)
+     call NOAHMP401_read_OPT_param(n, "BEXP", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%bexp(1) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+     
+     call NOAHMP401_read_OPT_param(n, "BEXP", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%bexp(2) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "BEXP", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%bexp(3) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     call NOAHMP401_read_OPT_param(n, "BEXP", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%bexp(4) =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    CSOIL (1-layer)
+     call NOAHMP401_read_OPT_param(n, "CSOIL", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%csoil =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    Vegetation Parameters from AI Calibration
+
+!    RSMIN (1-layer)
+     call NOAHMP401_read_OPT_param(n, "RSMIN", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%rsmin =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    RSMAX (1-layer)
+     call NOAHMP401_read_OPT_param(n, "RSMAX", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%rsmax =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    RGL (1-layer)
+     call NOAHMP401_read_OPT_param(n, "RGL", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%rgl =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    HS (1-layer)
+     call NOAHMP401_read_OPT_param(n, "HS", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%hs =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    TOPT (1-layer)
+     call NOAHMP401_read_OPT_param(n, "TOPT", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row     
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%topt =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+!    CZIL (1-layer)
+     call NOAHMP401_read_OPT_param(n, "CZIL", placeholder, var_found)
+     if(var_found) then
+        do t = 1, LIS_rc%npatch(n, mtype)
+           col = LIS_surface(n, mtype)%tile(t)%col
+           row = LIS_surface(n, mtype)%tile(t)%row     
+           if(placeholder(col,row).ne.LIS_rc%udef) then
+              NOAHMP401_struc(n)%noahmp401(t)%param%czil =&
+                   placeholder(col, row)
+           endif
+        enddo
+     endif
+
+     deallocate(placeholder)
+
   end do
+
+
 end subroutine NoahMP401_read_OPT_parameters
 
 !BOP
