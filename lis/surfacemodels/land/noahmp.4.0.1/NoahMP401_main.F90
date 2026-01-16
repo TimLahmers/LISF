@@ -288,12 +288,12 @@ subroutine NoahMP401_main(n)
 
             ! TML print statement for model debugging.
             tmp_printdebug = 0
-            if (row .eq. 12) then
-                if (col .eq. 25) then
-                    tmp_printdebug = 1
+            !if (row .eq. 12) then
+            !    if (col .eq. 25) then
+            !        tmp_printdebug = 1
                     !print *, "PRINTED DEBUG VARIABLES ON"
-                endif
-            endif
+            !    endif
+            !endif
 
             ! retrieve forcing data from NOAHMP401_struc(n)%noahmp401(t) and assign to local variables
             ! tair: air temperature
